@@ -1,0 +1,86 @@
+#pragma once
+#include "matrix.h"
+#include "common.h"
+
+#define DELTA			(2)
+#define NO_POS_DATA		(100+1)
+
+class PositionDiff
+{
+private:
+	int   freq;
+
+	int   count;
+	long  pdata[NO_POS_DATA];
+public:
+	float accel;
+
+public:
+	PositionDiff (int freq_)
+	{
+		freq = freq_;
+
+		Reset (0);
+	}
+
+	inline void Reset (long pos)
+	{
+		count = 0;
+		for (int i=0; i<NO_POS_DATA; i++) pdata[i] = pos;
+		accel = 0;
+	}
+
+	inline void SetDelta (long delta)
+	{
+		for (int i=0; i<NO_POS_DATA; i++) pdata[i] += delta;
+	}
+
+	inline void Position (long pos)
+	{
+		if (++count == NO_POS_DATA) count = 0;
+
+		pdata[count] = pos;
+	}
+
+	inline float Differentiate ()
+	{
+		int di = 1;
+		int i0 = count;
+		int i1 = count - 1*di;
+		int i2 = count - 2*di;
+
+		if (i1 < 0) i1 += NO_POS_DATA;
+		if (i2 < 0) i2 += NO_POS_DATA;
+
+		static const int dt[6] = { 1, 2, 5, 10, 25, 50 };
+
+		// 평균 속도를 계산하는 부분
+		for (int i=0, n=sizeof(dt)/sizeof(int); i<n; i++) {
+			int c1 = count - dt[i];
+			int c2 = count - dt[i]*2;
+			if (c1 < 0) c1 += NO_POS_DATA;
+			if (c2 < 0) c2 += NO_POS_DATA;
+
+			long d = (pdata[c2] - pdata[c1]) - (pdata[c1] - pdata[count]);
+
+			if (-DELTA <= d && d <= DELTA) {
+				di = dt[i];
+				i1 = c1;
+				i2 = c2;
+			}
+			else break;
+		}
+
+		long  pd1 = pdata[i1] - pdata[i0];
+		long  pd2 = pdata[i2] - pdata[i0];
+		float fdi = (float)freq/di;
+
+		accel = (pd2 - 2*pd1)*fdi*fdi;
+		return (pd2 - 4*pd1)*fdi/2;
+	}
+
+	inline float Acceleration ()
+	{
+		return accel;
+	}
+};
