@@ -1,5 +1,6 @@
 #include "utils.h"
 #include "CanOpenCia402.h"
+#include "Peripheral.h"
 
 uint32_t CanOpenCia402::SetResistance(uint16_t resistance)
 {
@@ -274,7 +275,9 @@ uint32_t CanOpenCia402::SetPcpModeCurrentModeDuration(uint16_t pcpModeCurrentMod
 //pjg++180417
 uint32_t CanOpenCia402::SetCANID(uint8_t id)
 {
+
 	_id = id;
+	
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -423,4 +426,13 @@ uint32_t CanOpenCia402::SetDigitalInputPolarity(uint32_t polarity)
 	_digitalInputPolarity = polarity;
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
+
+//pjg++190506
+uint32_t CanOpenCia402::SetActualVelocityFrqOfLPF(uint16_t freq)
+{
+	_actualVelocityFrqOfLPF = freq;
+	_actualVelocityCoe = VELOCITY_CONTROLLER_PERIOD*2.0f*M_PI*(float)freq;
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+
 

@@ -7,7 +7,17 @@
 #include "Pwm.h"
 #include "online_mechanic_param.h"
 //#include "stm32f4xx_hal_tim.h" //pjg++181102
-#include "stm32f4xx_hal.h" //pjg++181102
+//#include "stm32f7xx_hal.h" //pjg++181102
+
+#ifdef ADC_RESOLUTION_12BIT
+#define CUR_ADC_OFFSET_ERROR_H				2304 //12bit
+#define CUR_ADC_OFFSET_ERROR_L				1792//12bit
+#else
+//#define CUR_ADC_OFFSET_ERROR_H				9198 //14bit
+//#define CUR_ADC_OFFSET_ERROR_L				7186 //14bit
+#define CUR_ADC_OFFSET_ERROR_H				36792 //16bit
+#define CUR_ADC_OFFSET_ERROR_L				28744 //16bit
+#endif
 
 ServoController::ServoController(CanOpen *canOpenCia402)
 : _kalmanFilter((int32_t)(VELOCITY_CONTROLLER_FREQ), this), _voltageFilter(20, MIN_DC_LINK_VOLTAGE + 5.0f), _currentFilter(CURRENT_MOVING_AVERAGE_FILTER_NUM, 0.0f), _dAxisCurrentFilter(CURRENT_MOVING_AVERAGE_FILTER_NUM, 0.0f)
@@ -18,7 +28,7 @@ ServoController::ServoController(CanOpen *canOpenCia402)
 		
 	_nInit = 0;
 
-	_adcResult[0] = _adcResult[1] = _adcResult[2] = _adcResult[3] = 0;;
+	_adcResult[0] = _adcResult[1] = _adcResult[2] = _adcResult[3] = 0;
 	_adcOffset[0] = _adcOffset[1] = 0;
 	_adcOffsetSum[0] = _adcOffsetSum[1] = 0;
 	
@@ -29,6 +39,8 @@ ServoController::ServoController(CanOpen *canOpenCia402)
 	//_minActualVoltage = 56;//MIN_DC_LINK_VOLTAGE; //pjg<>180202
 	
 	_actualTemperature = 12.0f;
+	_pwm1 = _pwm2 = _pwm3 = 0; //pjg++190509 : motor move diable at enable
+	_adcOffsetOverCnt[0] = _adcOffsetOverCnt[1] = 0;
 }
 
 void ServoController::LoadProperty(void)
@@ -168,9 +180,10 @@ void ServoController::SetPositionEncoderSensorValue(int32_t positionEncoderSenso
 void ServoController::CalculateTemperature(uint16_t temperature)
 {
 	float fTmp = (float)(temperature - 620) * ADC_TO_TEMPERATURE;
+	//float fTmp = (float)(temperature - 1300) * ADC_TO_TEMPERATURE; //348보드에 맞게 맞춘값
 		
 	_actualTemperature = (TEMPERATURE_LOW_PASS_FILTER_COEF * fTmp + (1.0f - TEMPERATURE_LOW_PASS_FILTER_COEF) * _actualTemperature);
-	//_actualTemperature = 30.01; //pjg++190409 test
+	//_actualTemperature = 30.01; //pjg++test
 	if(_nInit < SC_INIT_TIME_CNT) {
 		return;
 	}
@@ -197,7 +210,7 @@ void ServoController::CalculateVoltage(uint16_t voltage)
 	
 	//	Low-Pass Filter
 	_actualVoltage = (VOLTAGE_LOW_PASS_FILTER_COEF * fTmp + (1.0f - VOLTAGE_LOW_PASS_FILTER_COEF) * _actualVoltage);
-    //_actualVoltage = 23.37; //pjg++190409 test
+	//_actualVoltage = 23.36; //pjg++test
 	//	Moving Average Filter
 	//_actualVoltage = _voltageFilter.Run(fTmp);
 	//	No Filter
@@ -290,7 +303,8 @@ void ServoController::CalculateCurrentOffset(void)
 
 void ServoController::CalculateCurrent(void)
 {
-	if((_adcOffset[0] > 2304) || (_adcOffset[0] < 1792) || (_adcOffset[1] > 2304) || (_adcOffset[1] < 1792)) {
+	if((_adcOffset[0] > CUR_ADC_OFFSET_ERROR_H) || (_adcOffset[0] < CUR_ADC_OFFSET_ERROR_L) || 
+		(_adcOffset[1] > CUR_ADC_OFFSET_ERROR_H) || (_adcOffset[1] < CUR_ADC_OFFSET_ERROR_L)) {
 		_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_CURRENT_DETECTION_ERROR);
 		_ctrlMode |= SC_ERROR_BIT;
 	}
@@ -420,7 +434,7 @@ void ServoController::CalculateElecAngle(uint8_t hallStatus, int32_t encoderPuls
 			//if(CalculateElecTheta(encoderPulse) < 0) {   //sec<>171204
 			ret = CalculateElecTheta(encoderPulse); //pjg<>180831
 		}
-		if(ret < 0) { //pjg<>180831
+		if (ret < 0) { //pjg<>180831
 			if (ret == -1) 	_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_SENSOR_NOT_FOUND_ERROR);
 			else if (ret == -2) _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_SENSOR_ERROR);
 			else if (ret == -3) _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_ANGLE_DETECTION_ERROR);
@@ -446,6 +460,8 @@ void ServoController::SetElecTheta(float elecTheta)
 
 void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 {
+#define CURRENT_AUTO_TUNING_START_NUM					0 //pjg++190510
+
 	_adcResult[0] = adc0;
 	_adcResult[1] = adc1;
 	
@@ -477,7 +493,7 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 	if(_ctrlMode == SC_CURRENT_AUTO_TUNING_MODE) {
 		if((_canOpenCia402->_controlWord & CIA_402_CONTROL_START_AUTO_TUNING) == CIA_402_CONTROL_START_AUTO_TUNING) {
 			_canOpenCia402->_controlWord &= ~CIA_402_CONTROL_START_AUTO_TUNING;
-
+			_canOpenCia402->_statusWord &= ~CIA_402_SUCCESS_AUTO_TUNING; //pjg++190510
 			_autoTuningIndex = 0;
 			_canOpenCia402->_bufIndex = 0;
 			
@@ -494,15 +510,16 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 		//
 		///////////////////////////////////////////////////////////////////////
 		if(!(_canOpenCia402->_statusWord & CIA_402_SUCCESS_AUTO_TUNING)) {
-			if(_autoTuningIndex == 0) {
+			if (_autoTuningIndex >= CURRENT_AUTO_TUNING_START_NUM) {
+				if(_autoTuningIndex == 0+CURRENT_AUTO_TUNING_START_NUM) {
 				_dAxisVoltage = Voltage[0];
 				_qAxisVoltage = 0.0f;
 			}
-			else if(_autoTuningIndex == 250) {
+				else if(_autoTuningIndex == 250+CURRENT_AUTO_TUNING_START_NUM) {
 				_dAxisVoltage = Voltage[1];
 				_qAxisVoltage = 0.0f;
 			}
-			else if(_autoTuningIndex == 500) {
+				else if(_autoTuningIndex == 500+CURRENT_AUTO_TUNING_START_NUM) {
 				_dAxisVoltage = Voltage[2];
 				_qAxisVoltage = 0.0f;
 			}
@@ -510,21 +527,21 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 				_dAxisVoltage = 0.0f;
 				_qAxisVoltage = 0.0f;
 			}
-			
-			if(_autoTuningIndex >= 200 && _autoTuningIndex < 250) {
+			}
+			if(_autoTuningIndex >= 200+CURRENT_AUTO_TUNING_START_NUM && _autoTuningIndex < 250+CURRENT_AUTO_TUNING_START_NUM) {
 				CurrentBuf[0] += _dAxisActualCurrent;
 			}
-			else if(_autoTuningIndex >= 450 && _autoTuningIndex < 500) {
+			else if(_autoTuningIndex >= 450+CURRENT_AUTO_TUNING_START_NUM && _autoTuningIndex < 500+CURRENT_AUTO_TUNING_START_NUM) {
 				CurrentBuf[1] += _dAxisActualCurrent;
 			}
-			else if(_autoTuningIndex >= 700 && _autoTuningIndex < 750) {
+			else if(_autoTuningIndex >= 700+CURRENT_AUTO_TUNING_START_NUM && _autoTuningIndex < 750+CURRENT_AUTO_TUNING_START_NUM) {
 				CurrentBuf[2] += _dAxisActualCurrent;
 			}
 			
-			if(++_autoTuningIndex == 1000) {
+			if(++_autoTuningIndex == 1000+CURRENT_AUTO_TUNING_START_NUM) {
 				_canOpenCia402->_statusWord |= CIA_402_SUCCESS_AUTO_TUNING;
 				//	Calculate Resistance
-				CurrentBuf[0] /= 50.0f;
+				CurrentBuf[0] /= 50.0f; //cal cur average
 				CurrentBuf[1] /= 50.0f;
 				CurrentBuf[2] /= 50.0f;
 				
@@ -565,6 +582,17 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 				
 				//LBuf[3] = (LBuf[0]+LBuf[1]+LBuf[2])/3.0f;
 				LBuf[3] = (LBuf[1]+LBuf[2])*0.5f;
+				//pjg++190510
+				//Kpc = Ls*Wc
+				//Kic = Rs*Wc
+				_canOpenCia402->_currentPGain = (uint16_t)(LBuf[3]*1000.0f*20000.0f/2.0f/20.0f*2.0f*PI);
+				_canOpenCia402->_currentIGain = (uint16_t)(_R*20000.0f/2.0f/20.0f*2.0f*PI);
+				_qAxisCurrentController.SetPGain((float)_canOpenCia402->_currentPGain * 0.001f);	//	10^-3
+				_qAxisCurrentController.SetIGain((float)_canOpenCia402->_currentIGain);				//	10^-0
+				
+				_dAxisCurrentController.SetPGain((float)_canOpenCia402->_currentPGain * 0.001f);	//	10^-3
+				_dAxisCurrentController.SetIGain((float)_canOpenCia402->_currentIGain);				//	10^-0
+				
 			}
 			
 			ControlVoltage();
@@ -693,8 +721,9 @@ void ServoController::RunVelocityPositionController(void)
 					else {
 						_canOpenCia402->_systemInertia = (uint32_t)(_Jm * 10000000000.0f);	//	kg*m^2 -> ug*cm^2 -> 10^10
 					}
-					
+					//Kps = JWcs/Kt
 					_velocityController.SetPGain(_Jm*(float)_canOpenCia402->_velocityControllerBandwidth/_Kt);
+					//Kis = JWcs^2/(5*Kt)
 					_velocityController.SetIGain(_Jm*(float)_canOpenCia402->_velocityControllerBandwidth/_Kt*(float)_canOpenCia402->_velocityControllerBandwidth/5.0f);
 					
 					_canOpenCia402->_coulombFriction = (uint32_t)(_Fc * 1000000.0f);
@@ -775,6 +804,13 @@ void ServoController::RunVelocityPositionController(void)
 		_canOpenCia402->_demandVelocity = (int32_t)(_demandVelocity * RPS2RPM);		//	rad/sec -> RPM
 	}
 	
+	//pjg++190508 actualVelocity LPF
+	if (_canOpenCia402->_actualVelocityFrqOfLPF > 0) {
+		_canOpenCia402->_actualVelocity  = (int32_t)(_canOpenCia402->_actualVelocityCoe * (float)_canOpenCia402->_actualVelocity +
+							(1.0f - _canOpenCia402->_actualVelocityCoe) * (float)_canOpenCia402->_oldActualVelocity );
+		_canOpenCia402->_oldActualVelocity = _canOpenCia402->_actualVelocity;
+	}
+	
 	_canOpenCia402->_demandPosition = _demandPosition;
 	_canOpenCia402->_actualPosition = _actualPosition;
 	
@@ -787,17 +823,27 @@ void ServoController::RunVelocityPositionController(void)
 		_ctrlMode |= SC_ERROR_BIT; //pjg++180827
 	}
 	
+	//if(_actualVelocity > 10.0f || _actualVelocity < -10.0f) {
+	//	if(CheckUVWire() < 0) { //pjg++190509
+			//_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_CURRENT_DETECTION_ERROR);
+			//_ctrlMode |= SC_ERROR_BIT;
+	//	}
+	//}
+	
 	//	Update LED Status
 	if((_ctrlMode & SC_ERROR_BIT) == SC_ERROR_BIT)	TurnOnErrorLed();
 	else											TurnOffErrorLed();
 	
-	if(_actualVelocity > 0.0f) {
+	//if(_actualVelocity > 0.0f) {
+	if(_actualVelocity > 1.0f) {
 		TurnOnStatusLed(0);
-		TurnOffStatusLed(1);
+		//TurnOffStatusLed(1);
 	}
-	else if(_actualVelocity < -0.0f) {
-		TurnOffStatusLed(0);
-		TurnOnStatusLed(1);
+	//else if(_actualVelocity < -0.0f) {
+	else if(_actualVelocity < -1.0f) {
+		//TurnOffStatusLed(0);
+		//TurnOnStatusLed(1);
+		TurnOnStatusLed(0); //pjg<>190509
 	}
 	else {
 		TurnOffStatusLedAll();
@@ -896,5 +942,27 @@ void ServoController::SaveVelocityDataToBuf(void)
 	if(_canOpenCia402->_bufIndex >= 1000) {
 		_canOpenCia402->_bufIndex = -1;
 	}
+}
+
+int ServoController::CheckUVWire(void)
+{
+#define ADC_UV_WIRE_CHECK_WINDOW_SIZE					10
+#define UV_WIRE_CMP_CHECK_WINDOW_SIZE					200
+
+	if (_adcResult[0] > _adcOffset[0]+ADC_UV_WIRE_CHECK_WINDOW_SIZE) _adcOffsetOverCnt[0]++;
+	else if (_adcResult[0] < _adcOffset[0]-ADC_UV_WIRE_CHECK_WINDOW_SIZE) _adcOffsetOverCnt[0]++;
+	else {
+		if (_adcOffsetOverCnt[0]) _adcOffsetOverCnt[0]--;
+	}
+
+	if (_adcResult[1] > _adcOffset[1]+ADC_UV_WIRE_CHECK_WINDOW_SIZE) _adcOffsetOverCnt[1]++;
+	else if (_adcResult[1] < _adcOffset[1]-ADC_UV_WIRE_CHECK_WINDOW_SIZE) _adcOffsetOverCnt[1]++;
+	else {
+		if (_adcOffsetOverCnt[1]) _adcOffsetOverCnt[1]--;
+	}
+
+	if (_adcOffsetOverCnt[0] > _adcOffsetOverCnt[1]+UV_WIRE_CMP_CHECK_WINDOW_SIZE) return -1;
+	if (_adcOffsetOverCnt[0]+UV_WIRE_CMP_CHECK_WINDOW_SIZE < _adcOffsetOverCnt[1]) return -1;
+	return 1;
 }
 

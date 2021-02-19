@@ -4,6 +4,7 @@
 
 
 #define	NUMBER_OF_OVER_CURRENT		1000		//	50us*1000 -> 50ms
+#define 	ADC_RESOLUTION_12BIT					//pjg++190410
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -308,8 +309,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 #elif defined(STM32F405RG_HEXASYS)
 #define	PWM_TIMER_PERIOD			4200	//	168MHz / 4200 / 2 = 20KHz -> 50us
-//#define	PWM_TIMER_PERIOD			1680	//	168MHz / 1680 / 2 = 50KHz -> 20us
+//#define	PWM_TIMER_PERIOD			5000	//	200MHz / 5000 / 2 = 20KHz -> 50us
 #define	DEAD_TIME					84		//	1 / 168MHz * 2 * 84 = 1.0us
+//#define	DEAD_TIME					100		//	1 / 200MHz * 2 * 100 = 1.0us
 #define	DEAD_TIME_INV_2				(DEAD_TIME >> 1)
 #define	MAX_PWM						(PWM_TIMER_PERIOD - DEAD_TIME)
 #define MAX_PWM_INV_2				(MAX_PWM >> 1)
@@ -324,21 +326,33 @@
 //#define	ADC_TO_CURRENT				0.00488400488f //pjg--180717
 #elif defined(HEXA_BD_10A_V20) //STM32F405RG_10A_ROHAU_CONTROLER
 // gain : 20 V/V
-// 3.3V:4096 = x : 1, => x = 3.3V/4095,
+// 3.3V:4096 = x : 1, => x = 3.3V/4095, => y = x/R/20
 #define	ADC_TO_CURRENT				0.013427734f
 #endif
 
 //	Gain : 1.3 / (33 + 1.3) = 0.04961832
 //	result * 3.3 / 4096 / Gain
-#define	ADC_TO_VOLTAGE				0.0212571364f
+#ifdef ADC_RESOLUTION_12BIT
+//#define	ADC_TO_VOLTAGE				0.0212571364f //12bit adc //cal from 3.3v
+#define	ADC_TO_VOLTAGE				0.020612981f //12bit adc //cal from 3.4v
+#else
+#define	ADC_TO_VOLTAGE				0.0212571364f //16bit adc
+#endif 
 
 //	ADC 변환:		1V --> 1365 
 //	전압-온도 관계:	1V = 100'C
-#define	ADC_TO_TEMPERATURE 			0.08056640625f
+#ifdef ADC_RESOLUTION_12BIT
+#define	ADC_TO_TEMPERATURE 			0.08056640625f //12bit adc
+#else
+#define	ADC_TO_TEMPERATURE 			0.08056640625f //16bit adc
+#endif 
 
 #define	MAX_CONT_CURRENT			10.0f
+//#define	MAX_CONT_CURRENT				20.0f
 #define	MAX_OUTPUT_CURRENT			18.0f
+//#define	MAX_OUTPUT_CURRENT			36.0f
 #define	HW_CURRENT_LIMIT			20.0f
+//#define	HW_CURRENT_LIMIT				38.0f
 
 #define	MAX_DC_LINK_VOLTAGE			65.0f
 #define	MIN_DC_LINK_VOLTAGE			12.0f
@@ -365,6 +379,10 @@
 //	Low-Pass Filter Coefficient = Sampling Time * 2 * M_PI * Cut-off frequency
 //	Sampling Time : 25KHz, Cut-off Frequency : 200Hz
 #define	CURRENT_LOW_PASS_FILTER_COEF		(CURRENT_CONTROLLER_PERIOD * 2.0f * M_PI * 200.0f)
+
+//	Low-Pass Filter Coefficient = Sampling Time * 2 * M_PI * Cut-off frequency
+//	Sampling Time : 2KHz, Cut-off Frequency : 200Hz
+#define	VELOCITY_LOW_PASS_FILTER_COEF	(VELOCITY_CONTROLLER_PERIOD * 2.0f * M_PI *200.0f)
 
 ////////////////////////////////////////////////////////////////////////////////
 //

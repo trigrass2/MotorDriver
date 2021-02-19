@@ -120,13 +120,16 @@ public:
 	uint32_t _dcLinkVoltage;
 	uint8_t _hallSensorPattern;
 	int32_t _loadTorque;
-	int32_t _loadTorqueThreshold;			uint32_t SetLoadTorqueThreshold(int32_t loadTorqueThreshold);
+	int32_t _loadTorqueThreshold;		uint32_t SetLoadTorqueThreshold(int32_t loadTorqueThreshold);
 	uint8_t _temperature;																			
 
 	//uint8_t _fHallSameCntClear;
 	//uint32_t _hallSameCnt; 			int8_t CheckHallSensorErr(void); //pjg++180827
 	//uint8_t _fEncSameCntClear;
 	//uint32_t _encSameCnt;			int8_t CheckEncoderErr(void); //pjg++180827
+	float _actualVelocityCoe; //pjg++190508
+	int32_t _oldActualVelocity;  //pjg++190508
+	uint16_t _actualVelocityFrqOfLPF; 	uint32_t SetActualVelocityFrqOfLPF(uint16_t freq);   //pjg++190508
 	
 	
 	
@@ -256,7 +259,7 @@ public:
 	uint32_t _bkId;
 	uint32_t _digitalInputMask; //pjg++190503
 	uint32_t _digitalInputPolarity; //pjg++190503
-	
+
 	uint32_t SetMotorInfoSendType(uint32_t type);
 	//uint16_t GetMotorInfoSendType(void);
 	//uint16_t GetCurMotorInfoSendType(void);

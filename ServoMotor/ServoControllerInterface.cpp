@@ -98,7 +98,7 @@ void LoadMotorProperty(uint32_t motorId)
 {
 	MOTOR_PROPERTY_EX mpex; //pjg++190426
 	int index = 0;
-    int i;
+	int i;
 
 	for(index = 0; index < NUMBER_OF_MOTOR_PROPERTY; index++) {
 		if(gMotorProperties[index].motorId == motorId) {
@@ -118,7 +118,7 @@ void LoadMotorProperty(uint32_t motorId)
 			for(index = 0; index < sizeof(MOTOR_PROPERTY); index++) {
 				*((uint8_t *)&mpex.motorProperty + index) = 0;
 			}
-			mpex.digitalInputMask = 0xffffffff;
+			mpex.digitalInputMask = 0;//0xffffffff;
 			mpex.digitalInputPolarity = 0x0;
 		}
 	}
@@ -127,7 +127,7 @@ void LoadMotorProperty(uint32_t motorId)
 		mpex.header[0] = 'H';
 		mpex.header[1] = 'X';
 		mpex.ver = PARAM_VER;
-		mpex.digitalInputMask = 0xffffffff;
+		mpex.digitalInputMask = 0;//0xffffffff;
 		mpex.digitalInputPolarity = 0x0;
 		for(i = 0; i < sizeof(MOTOR_PROPERTY); i++) {
 			*((uint8_t *)&mpex.motorProperty + i) = *((uint8_t *)&gMotorProperties[index] + i) ;

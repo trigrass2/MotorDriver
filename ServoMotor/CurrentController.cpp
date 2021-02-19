@@ -2,7 +2,8 @@
 #include "peripheral.h"
 #include "CurrentController.h"
 #include "FieldOrientedControl.h"
-#include "stm32f4xx_hal.h" //pjg++181105 for TIM1
+#include "stm32h743xx.h" //pjg++181105 for TIM1
+#include "stdio.h" //pjg++181105 for printf
 
 #define	BLDC_PHASE_U_TO_V	0
 #define	BLDC_PHASE_U_TO_W	1
@@ -194,7 +195,7 @@ void CurrentController::ControlVoltagePMSM(void)
 	InverseClarkeParkTransform(_elecSinTheta, _elecCosTheta, _dAxisVoltage, _qAxisVoltage, &_uVoltage, &_vVoltage, &_wVoltage);
 	
 	MakeSpaceVectorPwm(_actualVoltage, _maxOutputVoltage, _uVoltage, _vVoltage, _wVoltage, MAX_PWM, &pwm1, &pwm2, &pwm3);
-	
+	//_motorPhase = MOTOR_PHASE_U_W_V;
 	switch(_motorPhase) {
 		default :
 		case MOTOR_PHASE_U_V_W :
@@ -387,6 +388,13 @@ void CurrentController::ResetElecTheta(void)
 //int32_t _hall2EncGap; //pjg++181129	
 //int32_t _hallAngle; //pjg++181101
 //int32_t _encAngle; //pjg++181101
+#define TEST_BUF_NUM			1250
+uint8_t hallBuf[TEST_BUF_NUM];
+float _elecInitAngleBuf[TEST_BUF_NUM];
+int32_t _elecActualPositionBuf[TEST_BUF_NUM];
+uint32_t pos=0;
+int32_t encoderPulseBuf[TEST_BUF_NUM];
+float _elecThetaBuf[TEST_BUF_NUM];
 int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 {
 	int32_t temp, cur;
@@ -404,102 +412,126 @@ int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 			switch(_hallStatus) { //CW
 				case 6 :	if(_prevHallStatus == 2) {
 							_elecInitAngle = -30.0f;
-							_hallDir = HPD_TYPE6; //pjg<>181031	
+							_hallDir = HPD_TYPE6; //pjg<>181031
+							//printf("h62");
 						}
 						else if(_prevHallStatus == 4) { //pjg<>181031
 							_elecInitAngle = 30.0f;
 							_hallDir = HPD_TYPE6M; //pjg<>181031
+							//printf("h64");
 						}
 						else if(_prevHallStatus == 6) { //pjg<>181031
+							//printf("h66");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h6err");
 							//return -2;
 						}
 						break;
 				case 4 :	if(_prevHallStatus == 6) {
 							_elecInitAngle = 30.0f;
 							_hallDir = HPD_TYPE4;
+							//printf("h46");
 						}
 						else if(_prevHallStatus == 5) {
 							_elecInitAngle = 90.0f;
 							_hallDir = HPD_TYPE4M;
+							//printf("h45");
 						}
 						else if(_prevHallStatus == 4) { //pjg<>181031
+							//printf("h44");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h4err");
 							//return -2;
 						}
 						break;
 				case 5 :	if(_prevHallStatus == 4) {
 							_elecInitAngle = 90.0f;
 							_hallDir = HPD_TYPE5;
+							//printf("h54");
 						}
 						else if(_prevHallStatus == 1) {
 							_elecInitAngle = 150.0f;
 							_hallDir = HPD_TYPE5M;
+							//printf("h51");
 						}
 						else if(_prevHallStatus == 5) { //pjg<>181031
+							//printf("h55");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h5err");
 							//return -2;
 						}
 						break;
 				case 1 :	if(_prevHallStatus == 5) {
 							_elecInitAngle = 150.0f;
 							_hallDir = HPD_TYPE1;
+							//printf("h15");
 						}
 						else if(_prevHallStatus == 3) { 
 							_elecInitAngle = 210.0f;
 							_hallDir = HPD_TYPE1M;
+							//printf("h13");
 						}
 						else if(_prevHallStatus == 1) { //pjg<>181031
+							//printf("h11");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h1err");
 							//return -2;
 						}
 						break;
 				case 3 :	if(_prevHallStatus == 1) {
 							_elecInitAngle = 210.0f;
 							_hallDir = HPD_TYPE3;
+							///printf("h31");
 						}
 						else if(_prevHallStatus == 2) {
 							_elecInitAngle = 270.0f;
 							_hallDir = HPD_TYPE2M;
+							//printf("h32");
 						}
 						else if(_prevHallStatus == 3) { //pjg<>181031
+							//printf("h33");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h3err");
 							//return -2;
 						}
 						break;
 				case 2 :	if(_prevHallStatus == 3) {
 							_elecInitAngle = 270.0f;
 							_hallDir = HPD_TYPE2;
+							//printf("h23");
 						}
 						else if(_prevHallStatus == 6) {
 							_elecInitAngle = 330.0f;
 							_hallDir = HPD_TYPE2M;
+							//printf("h26");
 						}
 						else if(_prevHallStatus == 2) { //pjg<>181031
+							//printf("h22");
 						}
 						else {
 							_hallDir = HPD_TYPE_DIR_ERR; //pjg<>181031
+							//printf("h2err");
 							//return -2;
 						}
 						break;
 				default : 
 						_hallDir = HPD_TYPE_PAT_ERR;
-						//return -1; //sec++171204
+						//printf("1herr");
+						return -1; //sec++171204
 					
 			}
 			
 			_focStatus++;
-
 			_elecActualPosition = (int32_t)(_encoderResolution / _polePair) * (int32_t)_elecInitAngle / 360;
 			//_elecPrevPosition = encoderPulse;
 		}
@@ -507,19 +539,37 @@ int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 	}
 	else if(_focStatus == 0) {
 		switch(_hallStatus) {
-			case 6 :	_elecInitAngle = 00.0f;		break;
-			case 4 :	_elecInitAngle = 60.0f;		break;
-			case 5 :	_elecInitAngle = 120.0f;	break;
-			case 1 :	_elecInitAngle = 180.0f;	break;
-			case 3 :	_elecInitAngle = 240.0f;	break;
-			case 2 :	_elecInitAngle = 300.0f;	break;
+			case 6 :
+				_elecInitAngle = 00.0f;
+				//printf("h6");
+				break;
+			case 4 :
+				_elecInitAngle = 60.0f;
+				//printf("h4");
+				break;
+			case 5 :
+				_elecInitAngle = 120.0f;
+				//printf("h5");
+				break;
+			case 1 :
+				_elecInitAngle = 180.0f;
+				//printf("h1");
+				break;
+			case 3 :
+				_elecInitAngle = 240.0f;
+				//printf("h3");
+				break;
+			case 2 :
+				_elecInitAngle = 300.0f;
+				//printf("h2");
+				break;
 			default : 
 				_hallDir = HPD_TYPE_PAT_ERR;
-				//return -1;   //sec++171204
+				//printf("0herr");
+				return -1;   //sec++171204
 		}
-			
+
 		_focStatus = 1;
-		
 		_elecActualPosition = (int32_t)(_encoderResolution / _polePair) * (int32_t)_elecInitAngle / 360;
 		//_elecPrevPosition = encoderPulse;
 		_hallCnt = 0;
@@ -529,6 +579,13 @@ int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 	_elecActualPosition += (encoderPulse - _elecPrevPosition);
 	//_elecPrevPosition = encoderPulse; //pjg--181108
 	
+	if (pos < TEST_BUF_NUM-1 && _qAxisTargetCurrent > 0.2) { //test
+		hallBuf[pos] = _hallStatus;
+		_elecInitAngleBuf[pos] = _elecInitAngle;
+		_elecActualPositionBuf[pos] = _elecActualPosition;
+		encoderPulseBuf[pos] = encoderPulse;
+	}
+	
 	if(_elecActualPosition > _encoderResolution) {
 		_elecActualPosition -= _encoderResolution;
 	}
@@ -537,7 +594,10 @@ int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 	}
 	
 	_elecTheta = ((float)_elecActualPosition*_pulse2deg*(float)_polePair + _elecAngleOffset) * DEG_TO_RAD;
-	
+	if (pos < TEST_BUF_NUM-1 &&  _qAxisTargetCurrent > 0.2) { //test
+		_elecThetaBuf[pos] = _elecTheta;
+		pos++;
+	}
 	_elecSinTheta = arm_sin_f32(_elecTheta - _elecThetaError*DEG_TO_RAD);
 	_elecCosTheta = arm_cos_f32(_elecTheta - _elecThetaError*DEG_TO_RAD);
 
@@ -546,7 +606,8 @@ int CurrentController::CalculateElecTheta(int32_t encoderPulse)
 	//
 	//check hall/enc error
 	// pjg++>181120
-	cur = TIM1->CNT;
+	//cur = TIM1->CNT;
+	cur = 0;
 	temp = (cur - _hallPrevPosition);
 	//if (temp > 0) {
 	//	hallInputBuf[hallInputCnt] = temp;

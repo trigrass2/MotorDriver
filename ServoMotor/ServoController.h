@@ -50,9 +50,16 @@ protected:
 	KalmanFilter _kalmanFilter;
 	
 	uint16_t _nInit;
+	#if 1 //12bit
 	int16_t _adcResult[4];
 	int16_t _adcOffset[2];
 	int32_t _adcOffsetSum[2];
+	#else //16bit
+	uint16_t _adcResult[4];
+	uint16_t _adcOffset[2];
+	uint32_t _adcOffsetSum[2];
+	#endif
+	int32_t _adcOffsetOverCnt[2]; //pjg++190509
 	
 	uint32_t _digitalInput;
 	uint32_t _digitalOutput;
@@ -103,4 +110,5 @@ public:
 	
 	void SaveCurrentDataToBuf(void);
 	void SaveVelocityDataToBuf(void);
+	int CheckUVWire(void);
 };

@@ -1,32 +1,90 @@
 /* Includes ------------------------------------------------------------------*/
 #include "can_comm.h"
 
-#include "gpio.h"
+//#include "gpio.h"
 
 /* USER CODE BEGIN 0 */
 #include <string.h>
 #include "ServoControllerInterface.h"
+#include "main.h"
+
 CanQueue_t CanTxMsgQueue;       ///< M4 CAN tx message queue
 CanQueue_t CanRxMsgQueue;       ///< M4 CAN rx message queue
 
-static CanTxMsgTypeDef        CanTxMessage;     ///< M4 CAN tx message
-static CanRxMsgTypeDef        CanRxMessage;     ///< M4 CAN rx message
+//static CanTxMsgTypeDef        CanTxMessage;     ///< M4 CAN tx message
+//static CanRxMsgTypeDef        CanRxMessage;     ///< M4 CAN rx message
 
 //CAN_HandleTypeDef *coe_hcan;            ///< M4 CAN handle pointer for CANopen
+extern FDCAN_TxHeaderTypeDef TxHeader[2];
 
 /// @brief M4 CAN Configuration function
 /// @param type : CAN type, e.g. CAN1, CAN2
 /// @param id : CAN ID
 /// @return None
-void Can_config(CAN_HandleTypeDef *hcan, uint32_t id)
+void Can_config(FDCAN_HandleTypeDef *hdcan, uint32_t id)
 {
-  CAN_FilterConfTypeDef  sFilterConfig;
+#if 1
+	FDCAN_FilterTypeDef sFilterConfig;
+
+	/* Prepare Tx Header */
+	if (hdcan->Instance == FDCAN1) {
+		/* Configure Rx filter */
+		sFilterConfig.IdType = FDCAN_STANDARD_ID;
+		sFilterConfig.FilterIndex = 0;
+		sFilterConfig.FilterType = FDCAN_FILTER_MASK;
+		sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+		sFilterConfig.FilterID1 = 0;
+		sFilterConfig.FilterID2 = 0; /* For acceptance, MessageID and FilterID1 must match exactly */
+		HAL_FDCAN_ConfigFilter(hdcan, &sFilterConfig);
+
+		/* Configure Rx FIFO 0 watermark to 2 */
+		HAL_FDCAN_ConfigFifoWatermark(hdcan, FDCAN_CFG_RX_FIFO0, 2);
+		/* Activate Rx FIFO 0 watermark notification */
+		HAL_FDCAN_ActivateNotification(hdcan, FDCAN_IT_RX_FIFO0_WATERMARK, 0);
+
+		TxHeader[0].Identifier = 0x321;
+		TxHeader[0].IdType = FDCAN_STANDARD_ID;
+		TxHeader[0].TxFrameType = FDCAN_DATA_FRAME;
+		TxHeader[0].DataLength = FDCAN_DLC_BYTES_8;
+		TxHeader[0].ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+		TxHeader[0].BitRateSwitch = FDCAN_BRS_OFF;//FDCAN_BRS_ON;
+		TxHeader[0].FDFormat = FDCAN_FD_CAN;
+		TxHeader[0].TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+		TxHeader[0].MessageMarker = 0;	
+	}
+	else if (hdcan->Instance == FDCAN2) {
+		/* Configure Rx filter */
+		sFilterConfig.IdType = FDCAN_STANDARD_ID;
+		sFilterConfig.FilterIndex = 0;
+		sFilterConfig.FilterType = FDCAN_FILTER_MASK;
+		sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
+		sFilterConfig.FilterID1 = 0;
+		sFilterConfig.FilterID2 = 0; /* For acceptance, MessageID and FilterID1 must match exactly */
+		HAL_FDCAN_ConfigFilter(hdcan, &sFilterConfig);
+
+		/* Configure Rx FIFO 0 watermark to 2 */
+		HAL_FDCAN_ConfigFifoWatermark(hdcan, FDCAN_CFG_RX_FIFO0, 2);
+		/* Activate Rx FIFO 0 watermark notification */
+		HAL_FDCAN_ActivateNotification(hdcan, FDCAN_IT_RX_FIFO0_WATERMARK, 0);
+
+		TxHeader[1].Identifier = 0x321;
+		TxHeader[1].IdType = FDCAN_STANDARD_ID;
+		TxHeader[1].TxFrameType = FDCAN_DATA_FRAME;
+		TxHeader[1].DataLength = FDCAN_DLC_BYTES_8;
+		TxHeader[1].ErrorStateIndicator = FDCAN_ESI_ACTIVE;
+		TxHeader[1].BitRateSwitch = FDCAN_BRS_ON;
+		TxHeader[1].FDFormat = FDCAN_FD_CAN;
+		TxHeader[1].TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+		TxHeader[1].MessageMarker = 0;	
+	}
+#else
+CAN_FilterConfTypeDef  sFilterConfig;
   uint8_t filterNum = 0;
   if(hcan->Instance == CAN2)
     filterNum = 14;
 
-  hcan->pTxMsg = &CanTxMessage;
-  hcan->pRxMsg = &CanRxMessage;    
+  hdcan->pTxMsg = &CanTxMessage;
+  hdcan->pRxMsg = &CanRxMessage;    
 
   // Configure the CAN Filter
   sFilterConfig.FilterNumber = filterNum;
@@ -40,7 +98,7 @@ void Can_config(CAN_HandleTypeDef *hcan, uint32_t id)
   sFilterConfig.FilterActivation = ENABLE;
   sFilterConfig.BankNumber = filterNum;
   
-  if(HAL_CAN_ConfigFilter(hcan, &sFilterConfig) != HAL_OK)
+  if(HAL_CAN_ConfigFilter(hdcan, &sFilterConfig) != HAL_OK)
   {
     while(1)
     {
@@ -75,6 +133,7 @@ void Can_config(CAN_HandleTypeDef *hcan, uint32_t id)
   hcan->pTxMsg->DLC = 8;
   
   //coe_hcan = hcan;
+  #endif
 }
 /*
 int8_t coe_flushMbox(void)
@@ -95,11 +154,11 @@ int8_t coe_flushMbox(void)
 /// @brief M4 CAN receive start function
 /// @param type : CAN type, e.g. CAN1, CAN2
 /// @return None
-void Can_receive_start(CAN_HandleTypeDef *hcan)
+void Can_receive_start(FDCAN_HandleTypeDef *hdcan)
 {
-  if(HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
-  {
-  }  
+  //if(HAL_CAN_Receive_IT(hdcan, CAN_FIFO0) != HAL_OK)
+  //{
+  //}  
   //if(HAL_CAN_Receive_IT(hcan, CAN_FIFO1) != HAL_OK)
   //{
   //}    

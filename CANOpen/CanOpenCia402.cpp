@@ -1,8 +1,12 @@
 #include "utils.h"
 #include "CanOpenCia402.h"
 
-#define	HALL_ERR_CHECK_CNT	10000 //50us*10000=>50ms
-#define	ENC_ERR_CHECK_CNT	10000 //50us*10000=>50ms
+#define	HALL_ERR_CHECK_CNT			10000 //50us*10000=>50ms
+#define	ENC_ERR_CHECK_CNT			10000 //50us*10000=>50ms
+#define RUN_LED_STANDBY_NUM			20000 //pjg++190809
+#define RUN_LED_ENABLE_DIV_NUM		5 //pjg++190809
+
+extern uint16_t nRunLedCnt; //pjg++190509
 
 CanOpenCia402::CanOpenCia402(uint32_t vendorId, uint32_t productCode, uint32_t revisionNumber, uint32_t serialNumber)
 : CanOpenCia301(vendorId, productCode, revisionNumber, serialNumber)
@@ -151,7 +155,7 @@ CanOpenCia402::CanOpenCia402(uint32_t vendorId, uint32_t productCode, uint32_t r
 	_velocityAutoTuningAcceleration	= 100;		//	100%
 	_velocityAutoTuningVelocity = 20;			//	20%
 	_velocityAutoTuningPosition = 10000;		//	Count
-	_velocityControllerBandwidth = 300;			//	rad/s
+	_velocityControllerBandwidth = 50;			//	rad/s //pjg<>190807 : when motor that inertia is big, do down bandwidth value
 	
 	
 	_pcpModeStatus = PCP_MODE_STATUS_READY;
@@ -170,10 +174,16 @@ CanOpenCia402::CanOpenCia402(uint32_t vendorId, uint32_t productCode, uint32_t r
 	_motorInfoSendType = 0; //pjg++180717
 	_curMotorInfoSendType = 0; //pjg++180717
 	_bkId = 0; //pjg++180717
+	_actualVelocityCoe = 0.0f; //pjg++190508
+	_oldActualVelocity = 0; //pjg++190508
+	_actualVelocityFrqOfLPF = 0;
+	_torqueOffset = 0; //pjg++190809
 	//_fHallSameCntClear= 0; //pjg++180828
 	//_fEncSameCntClear= 0; //pjg++180828
 	//_hallSameCnt = 0; //pjg++180828
 	//_encSameCnt = 0; //pjg++180828
+	nRunLedCnt = RUN_LED_STANDBY_NUM; //pjg++190514
+
 	
 }
 
@@ -181,8 +191,10 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 {
 	uint32_t ret = CAN_OPEN_ABORT_CODE_NO_ERROR;
 	
+    nRunLedCnt = RUN_LED_STANDBY_NUM;
 	//	ControlWord Command
-	if((controlWord & CIA_402_CONTROL_COMMAND_MASK) != (_controlWord & CIA_402_CONTROL_COMMAND_MASK)) {
+	if((controlWord & CIA_402_CONTROL_COMMAND_MASK) != (_controlWord & CIA_402_CONTROL_COMMAND_MASK) ||
+		(STATUS_WORD_STATE == CIA_402_STATUS_FAULT)) { //pjg++190508 : not run fault cmd after fault
 			//	Not ready to switch on
 		if(STATUS_WORD_STATE == CIA_402_STATUS_NOT_READY_TO_SWITCH_ON) {
 			return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
@@ -197,6 +209,7 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 				_errorReg = 0x00;
 				_errorCode = 0x0000;
 				_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_SWITCH_ON_DISABLED;
+				_statusWord &= ~CIA_402_HOMING_ERROR; //pjg++190806 : not re-run in error after limit s/w is on
                 		_controlWord &= ~CIA_402_CONTROL_FAULT_RESET; //pjg++181001 can do re - fault reset
 			}
 			//	Error
@@ -211,6 +224,12 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 				if(_SwitchOnDisalbed_TO_ReadyToSwitchOn() < 0)		return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
 				
 				_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_READY_TO_SWITCH_ON;
+			}
+			else if((controlWord & CIA_402_CONTROL_DISABLE_VOLTAGE_MASK) == CIA_402_CONTROL_DISABLE_VOLTAGE) { //pjg++190508 : fault -> disable error fix
+				if(_ReadyToSwitchOn_TO_SwitchOnDisabled == NULL)	return CAN_OPEN_ABORT_CODE_GENERAL_ERROR;
+				if(_ReadyToSwitchOn_TO_SwitchOnDisabled() < 0)	return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
+			
+				_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_SWITCH_ON_DISABLED;
 			}
 			//	Error
 			else	return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
@@ -262,6 +281,7 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 				else {
 					ret = SetEnable();
 					_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_OPERATION_ENABLED;
+      				nRunLedCnt = RUN_LED_STANDBY_NUM/RUN_LED_ENABLE_DIV_NUM; //pjg++190509
 				}
 			}
 			//	Error
@@ -315,6 +335,7 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 
 				_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_OPERATION_ENABLED;
 				ret = SetEnable();
+      				nRunLedCnt = RUN_LED_STANDBY_NUM/RUN_LED_ENABLE_DIV_NUM; //pjg++190509
 			}
 			//	Error
 			else {

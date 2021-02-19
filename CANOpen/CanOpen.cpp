@@ -2275,7 +2275,7 @@ int8_t CanOpen::ProcessSdo(CAN_OPEN_SDO_MSG *canOpenSdoMsg)
 		////////////////////////////////////////////////////////////////////////
 		//	Set digital input value (pjg++190503)
 		////////////////////////////////////////////////////////////////////////
-    case HEXAR_CIA_402_DIGITAL_INPUT_CONFIG :
+	case HEXAR_CIA_402_DIGITAL_INPUT_CONFIG :
 			if(canOpenSdoMsg->subIndex == 1) {
 				/*if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
 					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
@@ -2312,7 +2312,23 @@ int8_t CanOpen::ProcessSdo(CAN_OPEN_SDO_MSG *canOpenSdoMsg)
 			else
 				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
 			break;
-			
+
+		////////////////////////////////////////////////////////////////////////
+		//	Set actual velocity cofeficient value (pjg++190508)
+		////////////////////////////////////////////////////////////////////////
+	case HEXAR_CIA_402_VELOCITY_LPF_FREQ :
+			if(canOpenSdoMsg->subIndex == 0) {
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
+					Uint16ToBytes(_actualVelocityFrqOfLPF, canOpenSdoMsg->data);
+					ret = 2;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_WORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(SetActualVelocityFrqOfLPF(BytesToUint16(canOpenSdoMsg->data)), canOpenSdoMsg);
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			break;
 		default :
 			ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_INDEX_ERROR, canOpenSdoMsg);			
 	}

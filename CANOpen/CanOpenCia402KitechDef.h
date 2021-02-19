@@ -75,6 +75,8 @@
 #define	HEXAR_CIA_402_CAN_ID_CHANGE							0x4100	//	Unsigned 8Bit,	RW	
 //pjg++180709
 #define	HEXAR_CIA_402_MOTOR_INFO_SEND_TYPE					0x4110	//	Unsigned 8Bit,	RW	
+//pjg++190508
+#define	HEXAR_CIA_402_VELOCITY_LPF_FREQ						0x4120	//	Unsigned 16Bit,	RW	
 
 #define	PCP_MODE_STATUS_READY								0x00
 #define	PCP_MODE_STATUS_TARGET_POSITION						0x01

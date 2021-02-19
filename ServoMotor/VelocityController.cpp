@@ -98,14 +98,15 @@ void VelocityController::CalculateVelocity(int32_t encoderPulse)
 	_actualVelocity = (_actualPosition - _prevPosition) * VELOCITY_CONTROLLER_FREQ * _pulse2rad;
 	_prevPosition = _actualPosition;
 	
-	/*
+	//pjg<>190807 : inertia큰 모터의 경우는 1enc 변화가 있어서 필터를 사용해서 없애야 함 190710 by ktech
+	///*
 	long velocity, acceleration;
 	_positionDiff.VelocityAcceleration(velocity, acceleration, _actualPosition, 4);
 	_estimatedVelocity = (float)velocity * _pulse2rad;
 	if(abs(_estimatedVelocity - _actualVelocity) < (_pulse2rad*VELOCITY_CONTROLLER_FREQ)) {
 		_actualVelocity = _estimatedVelocity;
 	}
-	*/
+	//*/
 		
 	_actualAcceleration = (_actualVelocity - _prevVelocity) * VELOCITY_CONTROLLER_FREQ;
 	_prevVelocity = _actualVelocity;

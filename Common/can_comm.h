@@ -5,7 +5,8 @@
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f4xx_hal.h"
+#include "stdint.h"
+#include "main.h"
 
 #define MAX_CAN_QUEUE_SIZE	64
 
@@ -29,8 +30,8 @@ extern CanQueue_t CanRxMsgQueue;
 
  
 int8_t coe_flushMbox(void);
-void Can_config(CAN_HandleTypeDef* hcan, uint32_t id);
-void Can_receive_start(CAN_HandleTypeDef* hcan);
+void Can_config(FDCAN_HandleTypeDef* hdcan, uint32_t id);
+//void Can_receive_start(FDCAN_HandleTypeDef* hdcan);
 
 int8_t Can_get_length_Rx_queue(void);
 void Can_init_Rx_queue(void);
