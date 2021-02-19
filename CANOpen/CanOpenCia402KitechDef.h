@@ -1,5 +1,6 @@
 #pragma once
 
+#define 	HEXAR_CIA_402_DIGITAL_INPUT_CONFIG				0x2071			//	Unsigned 16Bit, RW
 #define	KITECH_CIA_402_RESISTANCE							0x2800			//	Unsigned 16Bit, RW	m¥Ø
 #define	KITECH_CIA_402_Q_AXIS_INDUCTANCE					0x2801			//	Unsigned 32Bit, RW	uH
 #define	KITECH_CIA_402_D_AXIS_INDUCTANCE					0x2802			//	Unsigned 32Bit, RW	uH
@@ -70,6 +71,11 @@
 	#define	KITECH_CIA_402_PCP_MODE_TARGET_CURRENT				0x03		//	Signed 32Bit,	RW	mA
 	#define	KITECH_CIA_402_PCP_MODE_CURRENT_MODE_DURATION		0x04		//	Unsigned 16Bit,	RW	0.5ms
 
+//pjg++180417
+#define	HEXAR_CIA_402_CAN_ID_CHANGE							0x4100	//	Unsigned 8Bit,	RW	
+//pjg++180709
+#define	HEXAR_CIA_402_MOTOR_INFO_SEND_TYPE					0x4110	//	Unsigned 8Bit,	RW	
+
 #define	PCP_MODE_STATUS_READY								0x00
 #define	PCP_MODE_STATUS_TARGET_POSITION						0x01
 #define	PCP_MODE_STATUS_TARGET_CURRENT						0x02
@@ -135,3 +141,12 @@ typedef struct _MOTOR_PROPERTY_ {
 	uint32_t homingAcceleration;
 	int32_t homeOffset;
 } MOTOR_PROPERTY;
+
+typedef struct _MOTOR_PROPERTY_EX_ {
+	uint8_t header[2]; //hx
+	uint16_t ver; // 01.00 ~ 99.FF
+	MOTOR_PROPERTY motorProperty;
+	uint32_t digitalInputMask;
+	uint32_t digitalInputPolarity;
+}MOTOR_PROPERTY_EX;
+

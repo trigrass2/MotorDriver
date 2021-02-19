@@ -434,6 +434,15 @@ uint32_t CanOpenCia402::SetCurrentIGain(uint16_t currentIGain)
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
+//pjg++181130
+uint32_t CanOpenCia402::SetCurrentOffset(int16_t currentOffset)
+{
+	_setInt16DataFunc(CIA_402_CURRENT_PARAMETER, CIA_402_CURRENT_OFFSET, currentOffset);
+	_currentOffset = currentOffset;
+	
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+
 uint32_t CanOpenCia402::SetVelocityPGain(uint16_t velocityPGain)
 {
 	_setUint16DataFunc(CIA_402_VELOCITY_PARAMETER, CIA_402_VELOCITY_P_GAIN, velocityPGain);

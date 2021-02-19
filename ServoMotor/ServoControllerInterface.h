@@ -31,6 +31,7 @@ void SetAnalogInput(uint16_t *analogInput);
 
 int8_t ProcessSdo(CAN_OPEN_SDO_MSG *canOpenSdoMsg);
 int8_t ProcessSdoCan(uint32_t *id, uint8_t *data, uint32_t *len);
+extern int Callback_MotorInfoSend(uint32_t *id, uint8_t *data, uint32_t *len); //pjg++180710
 
 #ifdef __cplusplus
 }

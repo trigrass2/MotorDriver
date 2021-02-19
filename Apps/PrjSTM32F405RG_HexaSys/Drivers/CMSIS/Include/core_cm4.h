@@ -158,7 +158,6 @@
   #endif
 
 #elif defined ( __ICCARM__ )
-#define	__FPU_PRESENT 1U
   #if defined __ARMVFP__
     #if (__FPU_PRESENT == 1U)
       #define __FPU_USED       1U

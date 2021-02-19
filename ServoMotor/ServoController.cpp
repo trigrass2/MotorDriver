@@ -6,6 +6,8 @@
 #include "Io.h"
 #include "Pwm.h"
 #include "online_mechanic_param.h"
+//#include "stm32f4xx_hal_tim.h" //pjg++181102
+#include "stm32f4xx_hal.h" //pjg++181102
 
 ServoController::ServoController(CanOpen *canOpenCia402)
 : _kalmanFilter((int32_t)(VELOCITY_CONTROLLER_FREQ), this), _voltageFilter(20, MIN_DC_LINK_VOLTAGE + 5.0f), _currentFilter(CURRENT_MOVING_AVERAGE_FILTER_NUM, 0.0f), _dAxisCurrentFilter(CURRENT_MOVING_AVERAGE_FILTER_NUM, 0.0f)
@@ -23,7 +25,8 @@ ServoController::ServoController(CanOpen *canOpenCia402)
 	_autoTuningIndex = 0;
 	_autoTuningStartPosition = 0;
 	
-	_minActualVoltage = MIN_DC_LINK_VOLTAGE;
+	_minActualVoltage = MIN_DC_LINK_VOLTAGE; //pjg<>180202
+	//_minActualVoltage = 56;//MIN_DC_LINK_VOLTAGE; //pjg<>180202
 	
 	_actualTemperature = 12.0f;
 }
@@ -56,6 +59,7 @@ void ServoController::LoadProperty(void)
 	
 	_ratedCurrent = (float)_canOpenCia402->_ratedCurrent * 0.001f;
 	_maximumCurrent = (float)_canOpenCia402->_maximumCurrent * 0.001f;
+	//_maximumCurrent /= 1.5; // pjg++180202 test
 	_ratedTorque = (float)_canOpenCia402->_ratedTorque * 0.001f;			//	10^-3
 	
 	if(_motorType == MOTOR_TYPE_LINEAR) {
@@ -146,6 +150,11 @@ void ServoController::SetFault(void)
 void ServoController::ClearFault(void)
 {
 	_ctrlMode &= ~(SC_ERROR_BIT);
+	//_hallErrCnt = 0; //pjg++>180830
+	//_hallSameCnt = 0; //pjg++180830
+	//_encSameCnt = 0; //pjg++180830
+	//_canOpenCia402->_hallSameCnt = 0;
+	//_canOpenCia402->_encSameCnt = 0; //pjg<++180830
 }
 
 void ServoController::SetPositionEncoderSensorValue(int32_t positionEncoderSensorValue)
@@ -161,8 +170,8 @@ void ServoController::CalculateTemperature(uint16_t temperature)
 	float fTmp = (float)(temperature - 620) * ADC_TO_TEMPERATURE;
 		
 	_actualTemperature = (TEMPERATURE_LOW_PASS_FILTER_COEF * fTmp + (1.0f - TEMPERATURE_LOW_PASS_FILTER_COEF) * _actualTemperature);
-	
-	if(_nInit < 5000) {
+	//_actualTemperature = 30.01; //pjg++190409 test
+	if(_nInit < SC_INIT_TIME_CNT) {
 		return;
 	}
 	
@@ -175,18 +184,26 @@ void ServoController::CalculateTemperature(uint16_t temperature)
 
 }
 
+//float tempbuf[100];
+//uint8_t bufCnt = 0;
 void ServoController::CalculateVoltage(uint16_t voltage)
 {
 	float fTmp = (float)voltage * ADC_TO_VOLTAGE;
 	
+	//if (fTmp < 40) {
+	//	tempbuf[bufCnt++] = fTmp;
+	//	if (bufCnt >= 100) bufCnt = 0;
+	//}
+	
 	//	Low-Pass Filter
 	_actualVoltage = (VOLTAGE_LOW_PASS_FILTER_COEF * fTmp + (1.0f - VOLTAGE_LOW_PASS_FILTER_COEF) * _actualVoltage);
+    //_actualVoltage = 23.37; //pjg++190409 test
 	//	Moving Average Filter
 	//_actualVoltage = _voltageFilter.Run(fTmp);
 	//	No Filter
 	//_actualVoltage = fTmp;
 	
-	if(_nInit < 5000) {
+	if(_nInit < SC_INIT_TIME_CNT) {	//pjg<>180201 occur undervoltage at home-in
 		return;
 	}
 	
@@ -207,9 +224,13 @@ void ServoController::CalculateVoltage(uint16_t voltage)
 		_ctrlMode |= SC_ERROR_BIT;
 	}
 	else if(_actualVoltage < MIN_DC_LINK_VOLTAGE) {
-		_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_UNDER_VOLTAGE_ERROR);
-		_ctrlMode |= SC_ERROR_BIT;
+		//_nUnderVoltageCnt++;
+		//if (_nUnderVoltageCnt > 3) { // pjg++180202
+			_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_UNDER_VOLTAGE_ERROR);
+			_ctrlMode |= SC_ERROR_BIT;
+		//}
 	}
+	//else _nUnderVoltageCnt = 0;  // pjg++180202
 	
 	_canOpenCia402->_dcLinkVoltage = (uint32_t)(_actualVoltage * 1000.0f);
 }
@@ -253,12 +274,15 @@ void ServoController::ControlVoltage(void)
 
 void ServoController::CalculateCurrentOffset(void)
 {
+	if(_nInit < SC_INIT_TIME_CNT) { //pjg++190326
+		if (_adcResult[0] < 10 || _adcResult[1] < 10) return;
+	}
 	_adcOffsetSum[0] += _adcResult[0];
 	_adcOffsetSum[1] += _adcResult[1];
 		
-	if(++_nInit == 5000) {
-		_adcOffset[0] = (int16_t)(_adcOffsetSum[0] / 5000);
-		_adcOffset[1] = (int16_t)(_adcOffsetSum[1] / 5000);
+	if(++_nInit == SC_INIT_TIME_CNT) {
+		_adcOffset[0] = (int16_t)(_adcOffsetSum[0] / SC_INIT_TIME_CNT);
+		_adcOffset[1] = (int16_t)(_adcOffsetSum[1] / SC_INIT_TIME_CNT);
 		
 		_canOpenCia402->_statusWord = CIA_402_STATUS_SWITCH_ON_DISABLED | CIA_402_REMOTE;
 	}
@@ -336,7 +360,8 @@ void ServoController::CalculateCurrent(void)
 	_canOpenCia402->_dAxisTargetCurrent = (int32_t)(_dAxisTargetCurrent * 1000.0f);
 	_canOpenCia402->_qAxisTargetCurrent = (int32_t)(_qAxisTargetCurrent * 1000.0f);
 	_canOpenCia402->_dAxisActualCurrent = (int32_t)(_dAxisActualCurrent * 1000.0f);
-	_canOpenCia402->_qAxisActualCurrent = (int16_t)(_qAxisActualCurrent * 1000.0f);
+	_canOpenCia402->_qAxisActualCurrent = (int16_t)(_qAxisActualCurrent * 1000.0f); //pjg--180207
+	//_canOpenCia402->_qAxisActualCurrent = (int32_t)(_qAxisActualCurrent * 1000.0f); //pjg<>180207 type change
 	
 	_canOpenCia402->_actualCurrent = (int16_t)(_qAxisActualCurrent * 1000.0f);
 	_canOpenCia402->_averagedCurrent = (int32_t)(_actualCurrent * 1000.0f);
@@ -346,7 +371,8 @@ void ServoController::CalculateCurrent(void)
 
 void ServoController::ControlCurrent(void)
 {
-	_currentOffset = (float)_canOpenCia402->_torqueOffset * 0.001f * _ratedCurrent;
+	//_currentOffset = (float)_canOpenCia402->_torqueOffset * 0.001f * _ratedCurrent ; //pjg--181130
+	_currentOffset = (float)_canOpenCia402->_torqueOffset * 0.001f * _ratedCurrent + _currentOffsetable; //pjg<>181130
 	
 	if((_canOpenCia402->_motorType == CIA_402_DC_MOTOR) || (_canOpenCia402->_motorType == CIA_402_LINEAR_DC_MOTOR)) {
 		RunCurrentControllerDC();
@@ -365,6 +391,8 @@ void ServoController::ControlCurrent(void)
 
 void ServoController::CalculateElecAngle(uint8_t hallStatus, int32_t encoderPulse)
 {
+	int ret;
+	
 	if(_canOpenCia402->_positionSensorPolarity & 0x02) {
 		_hallStatus = (~hallStatus)&0x07;
 	}
@@ -385,12 +413,22 @@ void ServoController::CalculateElecAngle(uint8_t hallStatus, int32_t encoderPuls
 	}
 	else {
 		if(_canOpenCia402->_positionSensorPolarity & 0x01) {
-			CalculateElecTheta(-encoderPulse);
+			//if(CalculateElecTheta(-encoderPulse) < 0) {   //sec<>171204
+			ret = CalculateElecTheta(-encoderPulse); //pjg<>180831
 		}
 		else {
-			CalculateElecTheta(encoderPulse);
+			//if(CalculateElecTheta(encoderPulse) < 0) {   //sec<>171204
+			ret = CalculateElecTheta(encoderPulse); //pjg<>180831
 		}
-		
+		if(ret < 0) { //pjg<>180831
+			if (ret == -1) 	_canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_SENSOR_NOT_FOUND_ERROR);
+			else if (ret == -2) _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_SENSOR_ERROR);
+			else if (ret == -3) _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_HALL_ANGLE_DETECTION_ERROR);
+			else if (ret == -4) _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_POSITION_SENSOR_BREACH_ERROR);
+			else _canOpenCia402->SetErrorCode(CIA_402_ERROR_CODE_ENCODER_DISCONNECTION_ERROR);
+		}
+		//_canOpenCia402->_hallSameCnt = _hallSameCnt;  //pjg++>180827
+		//_canOpenCia402->_encSameCnt = _encSameCnt; //pjg++>180827
 	}
 }
 
@@ -411,11 +449,11 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 	_adcResult[0] = adc0;
 	_adcResult[1] = adc1;
 	
-	if(_nInit < 5000) {
+	if(_nInit < SC_INIT_TIME_CNT) {
 		DisablePwm();
 		CalculateCurrentOffset();
 		
-		if(_nInit == 5000) {
+		if(_nInit == SC_INIT_TIME_CNT) {
 			TurnOffErrorLed();
 		}
 		return;
@@ -545,6 +583,7 @@ void ServoController::RunCurrentController(int16_t adc0, int16_t adc1)
 		//	Voltage Control
 		if((_ctrlMode & SC_VOLTAGE_CTRL_BIT) == SC_VOLTAGE_CTRL_BIT)	ControlVoltage();
 		else															ResetCurrentController();
+		//else															ResetVoltageController(); //pjg<>171128
 	}
 
 	//	Servo Off	
@@ -567,9 +606,10 @@ void ServoController::RunVelocityPositionController(void)
 	static uint16_t prevMotionType;
 	float J, B, C;
 	//	Get the Digital Input States
-	if(_nInit >= 5000) {
+	if(_nInit >= SC_INIT_TIME_CNT) {
 		_digitalInput = GetDigitalInput();
-        _digitalInput = 0; //test
+		_digitalInput ^= _canOpenCia402->_digitalInputPolarity; //pjg++190503
+		_digitalInput &= _canOpenCia402->_digitalInputMask; //pjg++190503
 	}
 	
 	//	Velocity, Position and Homing Control
@@ -741,6 +781,11 @@ void ServoController::RunVelocityPositionController(void)
 	_canOpenCia402->_digitalInput = _digitalInput;
 	
 	_canOpenCia402->UpdateStatusWord();
+	//if (_canOpenCia402->_fHallSameCntClear) _hallSameCnt = 0; //pjg++180828
+	//if (_canOpenCia402->_fEncSameCntClear) _encSameCnt = 0; //pjg++180828
+	if (_canOpenCia402->_statusWord & CIA_402_FAULT) {
+		_ctrlMode |= SC_ERROR_BIT; //pjg++180827
+	}
 	
 	//	Update LED Status
 	if((_ctrlMode & SC_ERROR_BIT) == SC_ERROR_BIT)	TurnOnErrorLed();

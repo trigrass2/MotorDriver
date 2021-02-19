@@ -183,6 +183,8 @@ uint32_t CanOpenCia402::SetTargetCurrent(int32_t targetCurrent)
 	
 	_bufIndex = 0;
 	
+	//_fHallSameCntClear = 0; //pjg++180830
+	//_fEncSameCntClear = 0; //pjg++180830
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -268,3 +270,157 @@ uint32_t CanOpenCia402::SetPcpModeCurrentModeDuration(uint16_t pcpModeCurrentMod
 	
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
+
+//pjg++180417
+uint32_t CanOpenCia402::SetCANID(uint8_t id)
+{
+	_id = id;
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+
+//pjg++180710
+uint32_t CanOpenCia402::SetMotorInfoSendType(uint32_t type)
+{
+	_motorInfoSendType = type;
+	_curMotorInfoSendType = 1;
+	//bkMotorInfoSendType = motorInfoSendType;
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+
+//uint16_t CanOpenCia402::GetMotorInfoSendType(void)
+//{	
+//	while (curMotorInfoSendType > 0) {
+//		if (curMotorInfoSendType&motorInfoSendType) {
+//			break;
+//		}
+//		curMotorInfoSendType <<= 1;		
+//	}
+//	return curMotorInfoSendType;
+//}
+
+//uint16_t CanOpenCia402::GetCurMotorInfoSendType(void)
+//{	
+//	return motorInfoSendType;
+//}
+
+//void CanOpenCia402::ResetMotorInfoSendType(void)
+//{	
+///	curMotorInfoSendType = 1;
+//}
+
+int CanOpenCia402::MakeMotorInfoSendData(uint8_t *data)
+{
+	uint32_t motorInfoType;
+	uint8_t cmd;
+	uint16_t index;
+	uint8_t subIndex;
+
+	if (!_motorInfoSendType || !_curMotorInfoSendType) return 0;
+
+	while (_curMotorInfoSendType) {
+		motorInfoType = _motorInfoSendType & _curMotorInfoSendType;
+		_curMotorInfoSendType <<= 1;
+		if (motorInfoType) break;
+		if (!_curMotorInfoSendType) return 0;
+	}
+
+	cmd = SDO_UPLOAD_REQUEST;
+	subIndex = 0;
+
+	switch (motorInfoType) {
+	case MISTO_CIA_402_TARGET_POSITION:
+		index = CIA_402_TARGET_POSITION;
+		break;
+	case MISTO_CIA_402_ACTUAL_POSITION:
+		index = CIA_402_ACTUAL_POSITION;
+		break;
+	case MISTO_CIA_402_POSITION_DEMAND_VALUE:
+		index = CIA_402_POSITION_DEMAND_VALUE;
+		break;
+	case MISTO_CIA_402_POSITION_FOLLOWING_ERROR:
+		index = CIA_402_POSITION_FOLLOWING_ERROR;
+		break;
+	//torque	
+	case MISTO_CIA_402_TARGET_TORQUE:
+		index = CIA_402_TARGET_TORQUE;
+		break;
+	case MISTO_CIA_402_ACTUAL_TORQUE:
+		index = CIA_402_ACTUAL_TORQUE;
+		break;
+	case MISTO_KITECH_CIA_402_LOAD_TORQUE:
+		index = KITECH_CIA_402_LOAD_TORQUE;
+		break;
+	//case MISTO_CIA_402_TORQUE_OFFSET:
+	//	index = CIA_402_TORQUE_OFFSET;
+	//	break;
+	//velocity
+	case MISTO_CIA_402_TARGET_VELOCITY:
+		index = CIA_402_TARGET_VELOCITY;
+		break;
+	case MISTO_CIA_402_ACTUAL_VELOCITY:
+		index = CIA_402_ACTUAL_VELOCITY;
+		break;
+	case MISTO_CIA_402_DEMAND_VELOCITY:
+		index = CIA_402_DEMAND_VELOCITY;
+		break;
+	//current
+	case MISTO_KITECH_CIA_402_TARGET_CURRENT:
+		index = KITECH_CIA_402_TARGET_CURRENT;
+		break;
+	case MISTO_CIA_402_ACTUAL_CURRENT:
+		index = CIA_402_ACTUAL_CURRENT;
+		break;
+	case MISTO_KITECH_CIA_420_AVERAGED_CURRENT:
+		index = KITECH_CIA_420_AVERAGED_CURRENT;
+		break;
+	case MISTO_KITECH_CIA_402_D_AXIS_CURRENT:
+		index = KITECH_CIA_402_D_AXIS_CURRENT;
+		break;
+	case MISTO_KITECH_CIA_402_Q_AXIS_CURRENT:
+		index = KITECH_CIA_402_Q_AXIS_CURRENT;
+		break;
+	//etc
+	case MISTO_CIA_402_STATUS_WORD:
+		index = CIA_402_STATUS_WORD;
+		break;
+	case MISTO_CAN_OPEN_DC_LINK_VOLTAGE:
+		index = CIA_402_DC_LINK_VOLTAGE;
+		break;
+	case MISTO_KITECH_CIA_402_TEMPERATURE:
+		index = KITECH_CIA_402_TEMPERATURE;
+		break;
+	case MISTO_CIA_402_DIGITAL_INPUT:
+		index = CIA_402_DIGITAL_INPUT;
+		break;
+	case MISTO_KITECH_CIA_402_ANALOG_INPUT:
+		index = KITECH_CIA_402_ANALOG_INPUT;
+		subIndex = 1;
+		break;
+	default:
+		//Uint16ToBytes(_targetCurrent, data);
+		//data[0] = data[1] = data[2] = data[3] = 0;
+		index = 0;
+		break;
+	}
+
+	data[0] = (uint8_t)cmd;
+	data[1] = (uint8_t)(index);
+	data[2] = (uint8_t)(index>>8);
+	data[3] = (uint8_t)subIndex;	
+	return 1;
+}
+
+//pjg++190506
+uint32_t CanOpenCia402::SetDigitalInputMask(uint32_t mask)
+{
+	_digitalInputMask = mask;
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+
+//pjg++190506
+uint32_t CanOpenCia402::SetDigitalInputPolarity(uint32_t polarity)
+{
+	_digitalInputPolarity = polarity;
+	return CAN_OPEN_ABORT_CODE_NO_ERROR;
+}
+

@@ -11,6 +11,40 @@
 #define	STATUS_WORD_STATE	(_statusWord & CIA_402_STATUS_STATE_MASK)
 #define	STATUS_WORD_MODE	(_statusWord & CIA_402_STATUS_MODE_MASK)
 
+enum eMOTRO_INFO_SEND_TYPE_ORDER { //pjg++180710
+	//position
+	MISTO_CIA_402_TARGET_POSITION				= 0x00000001,
+	MISTO_CIA_402_ACTUAL_POSITION				= 0x00000002,
+	MISTO_CIA_402_POSITION_DEMAND_VALUE		= 0x00000004,
+	MISTO_CIA_402_POSITION_FOLLOWING_ERROR		= 0x00000008,
+	MISTO_CIA_402_RESERVED_POSITION				= 0x00000010,
+	//torque
+	MISTO_CIA_402_TARGET_TORQUE					= 0x00000020,
+	MISTO_CIA_402_ACTUAL_TORQUE					= 0x00000040,
+	MISTO_KITECH_CIA_402_LOAD_TORQUE			= 0x00000080,
+	MISTO_CIA_402_RESERVED_TORQUE				= 0x00000100,
+	//velocity
+	MISTO_CIA_402_TARGET_VELOCITY				= 0x00000200,
+	MISTO_CIA_402_ACTUAL_VELOCITY				= 0x00000400,
+	MISTO_CIA_402_DEMAND_VELOCITY				= 0x00000800,
+	MISTO_CIA_402_RESERVED_VELOCITY				= 0x00001000,
+	//current
+	MISTO_KITECH_CIA_402_TARGET_CURRENT			= 0x00002000,
+	MISTO_CIA_402_ACTUAL_CURRENT				= 0x00004000,
+	MISTO_KITECH_CIA_420_AVERAGED_CURRENT		= 0x00008000,
+	MISTO_KITECH_CIA_402_D_AXIS_CURRENT			= 0x00010000,
+	MISTO_KITECH_CIA_402_Q_AXIS_CURRENT			= 0x00020000,
+	MISTO_CIA_402_RESERVED_CURRENT				= 0x00040000,
+	//etc
+	MISTO_CIA_402_STATUS_WORD					= 0x01000000,
+	MISTO_CAN_OPEN_DC_LINK_VOLTAGE				= 0x02000000,
+	MISTO_KITECH_CIA_402_TEMPERATURE			= 0x04000000,
+	MISTO_CIA_402_DIGITAL_INPUT					= 0x08000000,
+	MISTO_KITECH_CIA_402_ANALOG_INPUT			= 0x10000000,
+	MISTO_MAX
+};
+
+
 typedef int8_t (*OnCia402StateMachineChangnedFunc)(void);
 
 typedef int8_t (*SetTargetVoltageFunc)(int32_t dAxisVoltage, int32_t qAxisVoltage);
@@ -89,6 +123,12 @@ public:
 	int32_t _loadTorqueThreshold;			uint32_t SetLoadTorqueThreshold(int32_t loadTorqueThreshold);
 	uint8_t _temperature;																			
 
+	//uint8_t _fHallSameCntClear;
+	//uint32_t _hallSameCnt; 			int8_t CheckHallSensorErr(void); //pjg++180827
+	//uint8_t _fEncSameCntClear;
+	//uint32_t _encSameCnt;			int8_t CheckEncoderErr(void); //pjg++180827
+	
+	
 	
 	void UpdateStatusWord(void);
 	uint32_t SetEnable(void);
@@ -101,7 +141,9 @@ public:
 	
 	
 	//	Parameters
-	uint8_t _id;
+	//uint8_t _id;	//pjg--180417 duplicate to	CanOpenCia301						
+
+	uint32_t SetCANID(uint8_t id); //pjg++180417
 		
 	//	Motor Properties
 	uint16_t _motorType;
@@ -153,6 +195,7 @@ public:
 	
 	uint16_t _currentPGain;						uint32_t SetCurrentPGain(uint16_t currentPGain);					//	Number		10^-3
 	uint16_t _currentIGain;						uint32_t SetCurrentIGain(uint16_t currentIGain);					//	Number		10^0
+	int16_t _currentOffset;						uint32_t SetCurrentOffset(int16_t currentOffset);				//	Number		0.01A  //pjg++181130
 	uint16_t _velocityPGain;					uint32_t SetVelocityPGain(uint16_t velocityPGain);					//	Number		10^-4
 	uint16_t _velocityIGain;					uint32_t SetVelocityIGain(uint16_t velocityIGain);					//	Number		10^-3
 	uint16_t _positionPGain;					uint32_t SetPositionPGain(uint16_t positionPGain);					//	Number		10^-2
@@ -207,8 +250,20 @@ public:
 	int16_t _bufIndex;
 	int32_t _buf0[BUF_SIZE];					int32_t GetBuf0(uint16_t index);
 	int32_t _buf1[BUF_SIZE];					int32_t GetBuf1(uint16_t index);
+
+	//etc
+	uint32_t _motorInfoSendType, _curMotorInfoSendType;
+	uint32_t _bkId;
+	uint32_t _digitalInputMask; //pjg++190503
+	uint32_t _digitalInputPolarity; //pjg++190503
 	
-	
+	uint32_t SetMotorInfoSendType(uint32_t type);
+	//uint16_t GetMotorInfoSendType(void);
+	//uint16_t GetCurMotorInfoSendType(void);
+	//void ResetMotorInfoSendType(void);
+	int MakeMotorInfoSendData(uint8_t *data);
+	uint32_t SetDigitalInputMask(uint32_t mask); //pjg++190506
+	uint32_t SetDigitalInputPolarity(uint32_t polarity); //pjg++190506
 	
 	//	Callback Functions
 	OnCia402StateMachineChangnedFunc _Fault_To_SwitchOnDisabled;

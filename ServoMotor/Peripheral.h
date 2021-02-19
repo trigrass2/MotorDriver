@@ -316,9 +316,17 @@
 #define	PWM_EFFICIENCY				0.98f	//	98%
 //#define	PWM_EFFICIENCY				0.90f	//	90%
 
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
 //	0.066V/A -> 0.066V : 1A = 3.3V : x -> x = 50A
-//	3.3V : 50A = 3.3V/4095 : x -> 0.01221001221
+//	3.3V : 50A = x/4095 : x -> 0.01221001221
 #define	ADC_TO_CURRENT				0.01221001221f
+//	3.3V : 20A = x/4095 : x -> 0.01221001221
+//#define	ADC_TO_CURRENT				0.00488400488f //pjg--180717
+#elif defined(HEXA_BD_10A_V20) //STM32F405RG_10A_ROHAU_CONTROLER
+// gain : 20 V/V
+// 3.3V:4096 = x : 1, => x = 3.3V/4095,
+#define	ADC_TO_CURRENT				0.013427734f
+#endif
 
 //	Gain : 1.3 / (33 + 1.3) = 0.04961832
 //	result * 3.3 / 4096 / Gain

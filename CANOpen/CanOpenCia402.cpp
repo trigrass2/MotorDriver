@@ -1,6 +1,9 @@
 #include "utils.h"
 #include "CanOpenCia402.h"
 
+#define	HALL_ERR_CHECK_CNT	10000 //50us*10000=>50ms
+#define	ENC_ERR_CHECK_CNT	10000 //50us*10000=>50ms
+
 CanOpenCia402::CanOpenCia402(uint32_t vendorId, uint32_t productCode, uint32_t revisionNumber, uint32_t serialNumber)
 : CanOpenCia301(vendorId, productCode, revisionNumber, serialNumber)
 {
@@ -163,6 +166,15 @@ CanOpenCia402::CanOpenCia402(uint32_t vendorId, uint32_t productCode, uint32_t r
 	_brakeRunTime = 0;
 	
 	_bufIndex = -1;
+
+	_motorInfoSendType = 0; //pjg++180717
+	_curMotorInfoSendType = 0; //pjg++180717
+	_bkId = 0; //pjg++180717
+	//_fHallSameCntClear= 0; //pjg++180828
+	//_fEncSameCntClear= 0; //pjg++180828
+	//_hallSameCnt = 0; //pjg++180828
+	//_encSameCnt = 0; //pjg++180828
+	
 }
 
 uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
@@ -185,6 +197,7 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 				_errorReg = 0x00;
 				_errorCode = 0x0000;
 				_statusWord = (_statusWord & ~CIA_402_STATUS_STATE_MASK) | CIA_402_STATUS_SWITCH_ON_DISABLED;
+                		_controlWord &= ~CIA_402_CONTROL_FAULT_RESET; //pjg++181001 can do re - fault reset
 			}
 			//	Error
 			else	return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
@@ -308,6 +321,8 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 				return CAN_OPEN_ABORT_CODE_WRONG_DEVICE_STATE;
 			}
 		}
+		//_fHallSameCntClear = 1; //pjg++180830
+		//_fEncSameCntClear = 1; //pjg++180830
 	}
 	
 	//	ControlWord Mode
@@ -344,6 +359,8 @@ uint32_t CanOpenCia402::SetControlWord(uint16_t controlWord)
 			_statusWord &= ~(CIA_402_SUCCESS_AUTO_TUNING | CIA_402_TARGET_REACHED);
 			_setInt8DataFunc(CIA_402_MODES_OF_OPERATION_DISPLAY, 0x00, _modesOfOperationDisplay);
 		}
+		//_fHallSameCntClear = 0; //pjg++180830
+		//_fEncSameCntClear = 0; //pjg++180830
 	}
 	
 	if(ret == CAN_OPEN_ABORT_CODE_NO_ERROR) {
@@ -484,6 +501,8 @@ uint32_t CanOpenCia402::SetTargetTorque(int16_t targetTorque)
 	_targetTorque = targetTorque;
 	_bufIndex = 0;
 	   
+	//_fHallSameCntClear = 0; //pjg++180830
+	//_fEncSameCntClear = 0; //pjg++180830
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -525,6 +544,8 @@ uint32_t CanOpenCia402::SetTargetVelocity(int32_t targetVelocity)
 	
 	_bufIndex = 0;
 	   
+	//_fHallSameCntClear = 0; //pjg++180830
+	//_fEncSameCntClear = 0; //pjg++180830
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -545,6 +566,8 @@ uint32_t CanOpenCia402::SetTargetProfileVelocity(int32_t targetProfileVelocity, 
 	
 	_bufIndex = 0;
 	   
+	//_fHallSameCntClear = 0; //pjg++180830
+	//_fEncSameCntClear = 0; //pjg++180830
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -582,7 +605,10 @@ uint32_t CanOpenCia402::SetTargetPosition(int32_t targetPosition)
 
 		_bufIndex = 0;
 	}
-	
+
+	//_fHallSameCntClear = 0; //pjg++180830
+	//_fEncSameCntClear = 0; //pjg++180830
+
 	return CAN_OPEN_ABORT_CODE_NO_ERROR;
 }
 
@@ -1199,7 +1225,7 @@ void CanOpenCia402::UpdateStatusWord(void)
 	}
 	
 	//	Check the Over Load Error
-	if(_modesOfOperationDisplay != CIA_402_HOMING_MODE) {
+	if(_modesOfOperationDisplay != CIA_402_HOMING_MODE) {	//pjg<>180202 prevent hip overload
 		if((_actualCurrent > (int)_maximumCurrent) || (_actualCurrent < -(int)_maximumCurrent)) {
 			_nOverLoad++;
 		}
@@ -1226,7 +1252,7 @@ void CanOpenCia402::UpdateStatusWord(void)
 
 	
 	if(_nOverLoad >= MAX_OVER_LOAD_COUNT) {
-		SetErrorCode(CIA_402_ERROR_CODE_OVER_LOAD_ERROR);
+		//SetErrorCode(CIA_402_ERROR_CODE_OVER_LOAD_ERROR);	//pjg--180206 to use max current (because heat sink is big)
 	}
 	else if(_nOverLoad < 0) {
 		_nOverLoad = 0;
@@ -1276,10 +1302,14 @@ void CanOpenCia402::UpdateStatusWord(void)
 					_statusWord &= (~CIA_402_STOP_AND_POSITION_CONTROL);
 					_currentTargetPosition = _nextTargetPosition = _demandPosition = _actualPosition;
 					if(_setTargetPosition != NULL) _setTargetPosition(_currentTargetPosition);
+					//_fHallSameCntClear = 1; //pjg++180828
+					//_fEncSameCntClear = 1; //pjg++180828
 				}
 			}
 			else {
 				_windowTime = 0;
+				//CheckHallSensorErr(); //pjg++180827
+				//CheckEncoderErr(); //pjg++180827
 			}
 		}
 		//Check the target reached in profile position mode
@@ -1297,10 +1327,14 @@ void CanOpenCia402::UpdateStatusWord(void)
 				else {
 					_statusWord &= ~CIA_402_TARGET_REACHED;
 				}
+				//_fHallSameCntClear = 1; //pjg++180828
+				//_fEncSameCntClear = 1; //pjg++180828
 			}
 			else {
 				_windowTime = 0;
 				_statusWord &= ~CIA_402_TARGET_REACHED;
+				//CheckHallSensorErr(); //pjg++180827
+				//CheckEncoderErr(); //pjg++180827
 			}
 		}
 		//	Check the target reached in profile velocity mode
@@ -1313,18 +1347,30 @@ void CanOpenCia402::UpdateStatusWord(void)
 				else {
 					_statusWord &= ~CIA_402_TARGET_REACHED;
 				}
+				//_fHallSameCntClear = 1; //pjg++180828
+				//_fEncSameCntClear = 1; //pjg++180828
 			}
 			else {
 				_windowTime = 0;
 				_statusWord &= ~CIA_402_TARGET_REACHED;
+				//CheckHallSensorErr(); //pjg++180827
+				//CheckEncoderErr(); //pjg++180827
 			}
 		}
 		//	Run Homing
 		else if(_modesOfOperationDisplay == CIA_402_HOMING_MODE) {
 			RunHoming();
 			
-			if(_homingStatus == HOMING_STATUS_COMPLETE)		_statusWord |= CIA_402_TARGET_REACHED;
-			else											_statusWord &= ~CIA_402_TARGET_REACHED;
+			if(_homingStatus == HOMING_STATUS_COMPLETE)	{
+				_statusWord |= CIA_402_TARGET_REACHED;
+				//_fHallSameCntClear = 1; //pjg++180828
+				//_fEncSameCntClear = 1; //pjg++180828
+			}
+			else	 {
+				_statusWord &= ~CIA_402_TARGET_REACHED;
+				//CheckHallSensorErr(); //pjg++180827
+				//CheckEncoderErr(); //pjg++180827
+			}
 		}
 		//	Position-Current-Position Mode
 		else if(_modesOfOperationDisplay == CIA_402_POSITION_CURRENT_POSITION_MODE) {
@@ -1336,6 +1382,8 @@ void CanOpenCia402::UpdateStatusWord(void)
 					_setTargetCurrent(_pcpModeTargetCurrent);
 					_pcpModeStatus = PCP_MODE_STATUS_TARGET_CURRENT;
 					_pcpModeCurrentModeRunTime = 0;
+					//_fHallSameCntClear = 1; //pjg++180828
+					//_fEncSameCntClear = 1; //pjg++180828
 				}
 				else if((positionError <= (int32_t)_positionWindow) && (positionError >= -(int32_t)_positionWindow)) {
 					if(++_windowTime >= _positionWindowTime) {
@@ -1344,10 +1392,14 @@ void CanOpenCia402::UpdateStatusWord(void)
 						_demandPosition = _actualPosition;
 						_windowTime = 0;
 						_pcpModeStatus = PCP_MODE_STATUS_HOME_POSITION;
+						//_fHallSameCntClear = 1; //pjg++180828
+						//_fEncSameCntClear = 1; //pjg++180828
 					}
 				}
 				else {
 					_windowTime = 0;
+					//CheckHallSensorErr(); //pjg++180827
+					//CheckEncoderErr(); //pjg++180827
 				}
 			}
 			else if(_pcpModeStatus == PCP_MODE_STATUS_TARGET_CURRENT) {
@@ -1359,6 +1411,8 @@ void CanOpenCia402::UpdateStatusWord(void)
 					_windowTime = 0;
 					
 					_statusWord |= CIA_402_PCP_MODE_ERROR;
+					//_fHallSameCntClear = 1; //pjg++180828
+					//_fEncSameCntClear = 1; //pjg++180828
 				}
 				else {
 					positionError = _pcpModeTargetPosition - _actualPosition;
@@ -1368,6 +1422,12 @@ void CanOpenCia402::UpdateStatusWord(void)
 						_currentTargetPosition = _nextTargetPosition = _pcpModeHomePosition;
 						_demandPosition = _actualPosition;
 						_windowTime = 0;
+						//_fHallSameCntClear = 1; //pjg++180828
+						//_fEncSameCntClear = 1; //pjg++180828
+					}
+					else { //pjg++180827
+						//CheckHallSensorErr(); //pjg++180827
+						//CheckEncoderErr(); //pjg++180827
 					}
 				}
 			}
@@ -1381,10 +1441,14 @@ void CanOpenCia402::UpdateStatusWord(void)
 					else {
 						_statusWord &= ~CIA_402_TARGET_REACHED;
 					}
+					//_fHallSameCntClear = 1; //pjg++180828
+					//_fEncSameCntClear = 1; //pjg++180828
 				}
 				else {
 					_windowTime = 0;
 					_statusWord &= ~CIA_402_TARGET_REACHED;
+					//CheckHallSensorErr(); //pjg++180827
+					//CheckEncoderErr(); //pjg++180827
 				}
 			}
 		}
@@ -1392,6 +1456,11 @@ void CanOpenCia402::UpdateStatusWord(void)
 	else {
 		_windowTime = 0;
 		_statusWord &= ~CIA_402_TARGET_REACHED;
+
+		//_fHallSameCntClear = 1; //pjg++180828
+		//_fEncSameCntClear = 1; //pjg++180828
+		//_hallSameCnt = 0; //pjg++180827
+		//_encSameCnt = 0; //pjg++180827
 	}
 	
 	//	Check the following error
@@ -1429,3 +1498,25 @@ int32_t CanOpenCia402::GetBuf1(uint16_t index)
 	
 	return _buf1[index];
 }
+#if 0
+//pjg++180827
+int8_t CanOpenCia402::CheckHallSensorErr(void)
+{
+	if (_fHallSameCntClear) _fHallSameCntClear = 0; //pjg++180828
+	if (_hallSameCnt > HALL_ERR_CHECK_CNT) {
+		SetErrorCode(CIA_402_ERROR_CODE_HALL_SENSOR_ERROR);
+	}
+	return 1;
+}
+
+//pjg++180827
+int8_t CanOpenCia402::CheckEncoderErr(void)
+{
+	if (_fEncSameCntClear) _fEncSameCntClear = 0; //pjg++180828
+	if (_encSameCnt > ENC_ERR_CHECK_CNT && _hallSameCnt < HALL_ERR_CHECK_CNT) {
+		SetErrorCode(CIA_402_ERROR_CODE_ENCODER_DISCONNECTION_ERROR);
+	}
+	return 1;
+}
+#endif
+

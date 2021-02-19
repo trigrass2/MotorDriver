@@ -6,15 +6,20 @@ extern TIM_HandleTypeDef htim8;
 void EnablePwm(void)
 {
 	//	Set -> High
- 	GPIOC->BSRR |= GPIO_PIN_4;
-	
+ #if defined(HEXA_BD_10A_V10) //single leg hexar version
+	GPIOC->BSRR |= GPIO_PIN_4;
+#else
+#endif
 	SetPwm(0, 0, 0);
 }
 
 void DisablePwm(void)
 {
 	//	Reset -> Low
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
 	GPIOC->BSRR |= (GPIO_PIN_4 << 16);
+#else
+#endif
 
 	SetPwm(-1, -1, -1);
 }

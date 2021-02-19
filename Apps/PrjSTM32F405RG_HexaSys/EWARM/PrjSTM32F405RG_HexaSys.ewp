@@ -128,7 +128,7 @@
         <option>
           <name>GBECoreSlave</name>
           <version>24</version>
-          <state>40</state>
+          <state>39</state>
         </option>
         <option>
           <name>OGUseCmsis</name>
@@ -189,6 +189,8 @@
           <state>STM32F405xx</state>
           <state>ARM_MATH_CM4</state>
           <state>STM32F405RG_HEXASYS</state>
+          <state>__FPU_PRESENT</state>
+          <state>HEXA_BD_10A_V20</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -249,7 +251,7 @@
         <option>
           <name>CCAllowList</name>
           <version>1</version>
-          <state>10010100</state>
+          <state>00000000</state>
         </option>
         <option>
           <name>CCDebugInfo</name>
@@ -344,7 +346,7 @@
         </option>
         <option>
           <name>CCOptLevel</name>
-          <state>2</state>
+          <state>0</state>
         </option>
         <option>
           <name>CCOptStrategy</name>
@@ -353,7 +355,7 @@
         </option>
         <option>
           <name>CCOptLevelSlave</name>
-          <state>2</state>
+          <state>0</state>
         </option>
         <option>
           <name>CompilerMisraRules98</name>
@@ -608,7 +610,7 @@
         <option>
           <name>OOCOutputFormat</name>
           <version>3</version>
-          <state>0</state>
+          <state>3</state>
         </option>
         <option>
           <name>OCOutputOverride</name>
@@ -616,7 +618,7 @@
         </option>
         <option>
           <name>OOCOutputFile</name>
-          <state>Project.srec</state>
+          <state>PrjSTM32F405RG_HexaSys.bin</state>
         </option>
         <option>
           <name>OOCCommandLineProducer</name>
@@ -624,7 +626,7 @@
         </option>
         <option>
           <name>OOCObjCopyEnable</name>
-          <state>0</state>
+          <state>1</state>
         </option>
       </data>
     </settings>
@@ -1112,7 +1114,7 @@
         <name>$PROJ_DIR$\..\..\..\ServoMotor\online_mechanic_param.h</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\..\..\..\ServoMotor\peripheral.h</name>
+        <name>$PROJ_DIR$\..\..\..\ServoMotor\Peripheral.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\..\..\ServoMotor\PidController.cpp</name>
@@ -1179,6 +1181,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\..\Src\pwm.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\Src\spi.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\Src\stm32f4xx_hal_msp.c</name>
@@ -1248,6 +1253,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\..\Drivers\STM32F4xx_HAL_Driver\Src\stm32f4xx_hal_rcc_ex.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\..\Drivers\STM32F4xx_HAL_Driver\Src\stm32f4xx_hal_spi.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\..\Drivers\STM32F4xx_HAL_Driver\Src\stm32f4xx_hal_tim.c</name>

@@ -1143,7 +1143,7 @@
         <debug>1</debug>
         <option>
           <name>CRDIDriverDll</name>
-          <state>###Uninitialized###</state>
+          <state>Browse to your RDI driver</state>
         </option>
         <option>
           <name>CRDILogFileCheck</name>
@@ -1213,7 +1213,7 @@
         <option>
           <name>CCSTLinkResetList</name>
           <version>3</version>
-          <state>0</state>
+          <state>4</state>
         </option>
         <option>
           <name>CCCpuClockEdit</name>

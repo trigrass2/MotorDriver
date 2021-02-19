@@ -1,17 +1,17 @@
 #include "FieldOrientedControl.h"
 
 #define	SQRT_3_INV_2		0.86602540378f	//	sqrt(3)/2
-#define	INV_SQRT_3			0.57735026918f	//	1/sqrt(3)
+#define	INV_SQRT_3			0.57735026918f	//	sqrt(3)/3 //pjg<>181126 note
 
 void ClarkeParkTransform(float sinTheta, float cosTheta, float uCurrent, float vCurrent, float wCurrent, float *dCurrent, float *qCurrent)
 {
 	//	Clarke Transform
 	//	ids = uCurrent
-	//	iqs = sqrt(3)*(vCurrent - wCurrent) / 2
+	//	iqs = sqrt(3)*(uCurrent - vCurrent) / 3
 	//	K = 1
 	float K = 1.0f;
-	float ia = K*uCurrent;
-	float ib = K*INV_SQRT_3*(uCurrent + 2.0f*vCurrent);
+	float ia = K*uCurrent; //i alpha
+	float ib = K*INV_SQRT_3*(uCurrent + 2.0f*vCurrent); //i beta
 	
 
 	//	Park Transform

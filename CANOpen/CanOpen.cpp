@@ -43,13 +43,18 @@ int8_t CanOpen::ProcessSdoCanOpen(uint32_t *id, uint8_t *data, uint32_t *len)
 		canOpenSdoMsg.subIndex = data[3];
 		memcpy(canOpenSdoMsg.data, &data[4], 4);	
 		ret = ProcessSdo(&canOpenSdoMsg);
-		*id = nodeId + TSDO_COB_ID;
-		data[0] = (uint8_t)canOpenSdoMsg.cmd;
-		data[1] = (uint8_t)(canOpenSdoMsg.index>>0);
-		data[2] = (uint8_t)(canOpenSdoMsg.index>>8);
-		data[3] = (uint8_t)canOpenSdoMsg.subIndex;	
-		memcpy(&data[4], canOpenSdoMsg.data, ret);
-		*len = ret + 4;		
+		if (ret >= 0) { //pjg++180716
+			*id = nodeId + TSDO_COB_ID;
+			data[0] = (uint8_t)canOpenSdoMsg.cmd;
+			data[1] = (uint8_t)(canOpenSdoMsg.index>>0);
+			data[2] = (uint8_t)(canOpenSdoMsg.index>>8);
+			data[3] = (uint8_t)canOpenSdoMsg.subIndex;	
+			memcpy(&data[4], canOpenSdoMsg.data, ret);
+			*len = ret + 4;	
+		}
+		else {
+			_bkId = *id;
+		}
 	}
 	else if((cob_id == RPDO1_COB_ID) 
 		  || (cob_id == RPDO2_COB_ID) 
@@ -1570,6 +1575,17 @@ int8_t CanOpen::ProcessSdo(CAN_OPEN_SDO_MSG *canOpenSdoMsg)
 				else
 					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
 			}
+			else if(canOpenSdoMsg->subIndex == CIA_402_CURRENT_OFFSET) { //pjg++181130
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_WORD;
+					Int16ToBytes(_currentOffset, canOpenSdoMsg->data);
+					ret = 2;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_WORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(SetCurrentOffset(BytesToInt16(canOpenSdoMsg->data)), canOpenSdoMsg);
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
 			else
 				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
 			break;
@@ -2215,8 +2231,90 @@ int8_t CanOpen::ProcessSdo(CAN_OPEN_SDO_MSG *canOpenSdoMsg)
 				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
 			break;
 			
+		////////////////////////////////////////////////////////////////////////
+		//	Change CAN ID (pjg++180417)
+		////////////////////////////////////////////////////////////////////////
+      		case HEXAR_CIA_402_CAN_ID_CHANGE :
+			if(canOpenSdoMsg->subIndex == 0) {
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_BYTE;
+					Uint8ToBytes(_id, canOpenSdoMsg->data);
+					ret = 1;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_BYTE)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(SetCANID(BytesToUint8(canOpenSdoMsg->data)), canOpenSdoMsg);
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			else
+				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
+			break;
+
+		////////////////////////////////////////////////////////////////////////
+		//	Set motor info to send info to host (pjg++180710)
+		////////////////////////////////////////////////////////////////////////
+      		case HEXAR_CIA_402_MOTOR_INFO_SEND_TYPE :
+			if(canOpenSdoMsg->subIndex == 0) {
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
+					Uint32ToBytes(_motorInfoSendType, canOpenSdoMsg->data);
+					ret = 4;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_DWORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+				{
+					ret = MakeAbortCodePacket(SetMotorInfoSendType(BytesToUint32(canOpenSdoMsg->data)), canOpenSdoMsg);
+					//ret = -1;
+				}
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			else
+				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
+			break;
+
+		////////////////////////////////////////////////////////////////////////
+		//	Set digital input value (pjg++190503)
+		////////////////////////////////////////////////////////////////////////
+    case HEXAR_CIA_402_DIGITAL_INPUT_CONFIG :
+			if(canOpenSdoMsg->subIndex == 1) {
+				/*if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
+					Uint32ToBytes(_digitalInput, canOpenSdoMsg->data);
+					ret = 4;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_WORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_READ_ONLY_ERROR, canOpenSdoMsg);
+				else*/
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			else if(canOpenSdoMsg->subIndex == 2) {
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
+					Uint32ToBytes(_digitalInputMask, canOpenSdoMsg->data);
+					ret = 4;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_WORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(SetDigitalInputMask(BytesToUint32(canOpenSdoMsg->data)), canOpenSdoMsg);
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			else if(canOpenSdoMsg->subIndex == 3) {
+				if((canOpenSdoMsg->cmd & SDO_CMD_SPECIFIER) == SDO_UPLOAD_REQUEST) {
+					canOpenSdoMsg->cmd = SDO_UPLOAD_RESPONSE | SDO_SIZE_DWORD;
+					Uint32ToBytes(_digitalInputPolarity, canOpenSdoMsg->data);
+					ret = 4;
+				}	
+				else if((canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_WORD)) || (canOpenSdoMsg->cmd == (SDO_DOWNLOAD_REQUEST | SDO_SIZE_UNDEFINED)))
+					ret = MakeAbortCodePacket(SetDigitalInputPolarity(BytesToUint32(canOpenSdoMsg->data)), canOpenSdoMsg);
+				else
+					ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_ACCESS_ERROR, canOpenSdoMsg);
+			}
+			else
+				ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_SUB_INDEX_ERROR, canOpenSdoMsg);
+			break;
+			
 		default :
-			ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_INDEX_ERROR, canOpenSdoMsg);
+			ret = MakeAbortCodePacket(CAN_OPEN_ABORT_CODE_OBJECT_INDEX_ERROR, canOpenSdoMsg);			
 	}
 	
 	return ret;

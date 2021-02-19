@@ -5,6 +5,8 @@
 #include "Io.h"
 #include "utils.h"
 
+#define PARAM_VER				0x0100 //v01.00	//pjg++190426
+
 CanOpen canOpen(0x00000892, 0x000000FF, 0x20161010, 0x20161010);
 ServoController servoController(&canOpen);
 
@@ -94,124 +96,157 @@ void InitServoController(void)
 
 void LoadMotorProperty(uint32_t motorId)
 {
+	MOTOR_PROPERTY_EX mpex; //pjg++190426
 	int index = 0;
+    int i;
 
 	for(index = 0; index < NUMBER_OF_MOTOR_PROPERTY; index++) {
 		if(gMotorProperties[index].motorId == motorId) {
 			break;
 		}
 	}
+	
 	if(index == NUMBER_OF_MOTOR_PROPERTY) {
 		index = 0;
-		LoadProperties((uint8_t *)&gMotorProperties[index], sizeof(MOTOR_PROPERTY));
+		//LoadProperties((uint8_t *)&gMotorProperties[index], sizeof(MOTOR_PROPERTY));
+		LoadProperties((uint8_t *)&mpex, sizeof(MOTOR_PROPERTY_EX));
+		if (mpex.motorProperty.id > 127 || 
+			mpex.motorProperty.polePairs > 127 ||
+			mpex.motorProperty.motorPhase > 127 ||
+			mpex.header[0] != 'H' ||
+			mpex.header[1] != 'X' ) {
+			for(index = 0; index < sizeof(MOTOR_PROPERTY); index++) {
+				*((uint8_t *)&mpex.motorProperty + index) = 0;
+			}
+			mpex.digitalInputMask = 0xffffffff;
+			mpex.digitalInputPolarity = 0x0;
+		}
 	}
 	else {
-		SaveProperties((uint8_t *)&gMotorProperties[index], sizeof(MOTOR_PROPERTY));
+		//SaveProperties((uint8_t *)&gMotorProperties[index], sizeof(MOTOR_PROPERTY));
+		mpex.header[0] = 'H';
+		mpex.header[1] = 'X';
+		mpex.ver = PARAM_VER;
+		mpex.digitalInputMask = 0xffffffff;
+		mpex.digitalInputPolarity = 0x0;
+		for(i = 0; i < sizeof(MOTOR_PROPERTY); i++) {
+			*((uint8_t *)&mpex.motorProperty + i) = *((uint8_t *)&gMotorProperties[index] + i) ;
+		}
+		SaveProperties((uint8_t *)&mpex, sizeof(MOTOR_PROPERTY_EX));
 	}
 	
-	canOpen._id = gMotorProperties[index].id;
-	canOpen._motorType =  gMotorProperties[index].motorType;
-	canOpen._resistance =  gMotorProperties[index].resistance;
-	canOpen._dAxisInductance = gMotorProperties[index].dAxisInductance;
-	canOpen._qAxisInductance = gMotorProperties[index].qAxisInductance;
-	canOpen._torqueConstant = gMotorProperties[index].torqueConstant;
-	canOpen._backEmfConstant = gMotorProperties[index].backEmfConstant;
-	canOpen._systemInertia = gMotorProperties[index].systemInertia;
-	canOpen._coulombFriction = gMotorProperties[index].coulombFriction;
-	canOpen._viscosFriction = gMotorProperties[index].viscosFriction;
-	canOpen._electricAngleOffset = gMotorProperties[index].elecAngleOffset;
-	canOpen._motorPhase = gMotorProperties[index].motorPhase;
+	canOpen._id = mpex.motorProperty.id;
+	canOpen._motorType =  mpex.motorProperty.motorType;
+	canOpen._resistance =  mpex.motorProperty.resistance;
+	canOpen._dAxisInductance = mpex.motorProperty.dAxisInductance;
+	canOpen._qAxisInductance = mpex.motorProperty.qAxisInductance;
+	canOpen._torqueConstant = mpex.motorProperty.torqueConstant;
+	canOpen._backEmfConstant = mpex.motorProperty.backEmfConstant;
+	canOpen._systemInertia = mpex.motorProperty.systemInertia;
+	canOpen._coulombFriction = mpex.motorProperty.coulombFriction;
+	canOpen._viscosFriction = mpex.motorProperty.viscosFriction;
+	canOpen._electricAngleOffset = mpex.motorProperty.elecAngleOffset;
+	canOpen._motorPhase = mpex.motorProperty.motorPhase;
 	
-	canOpen._ratedCurrent = gMotorProperties[index].ratedCurrent;
-	canOpen._maximumCurrent = gMotorProperties[index].maxCurrent;
-	canOpen._ratedTorque = gMotorProperties[index].ratedTorque;
-	canOpen._maxMotorSpeed = gMotorProperties[index].maxMotorSpeed;
+	canOpen._ratedCurrent = mpex.motorProperty.ratedCurrent;
+	canOpen._maximumCurrent = mpex.motorProperty.maxCurrent;
+	canOpen._ratedTorque = mpex.motorProperty.ratedTorque;
+	canOpen._maxMotorSpeed = mpex.motorProperty.maxMotorSpeed;
 	
-	canOpen._positionSensorType = gMotorProperties[index].positionSensorType;
-	canOpen._positionSensorPolarity = gMotorProperties[index].positionSensorPolarity;
-	canOpen._polePairs = gMotorProperties[index].polePairs;
-	canOpen._positionEncoderIncrement = gMotorProperties[index].positionSensorIncrement;
+	canOpen._positionSensorType = mpex.motorProperty.positionSensorType;
+	canOpen._positionSensorPolarity = mpex.motorProperty.positionSensorPolarity;
+	canOpen._polePairs = mpex.motorProperty.polePairs;
+	canOpen._positionEncoderIncrement = mpex.motorProperty.positionSensorIncrement;
 	canOpen._positionEncoderMotorRevolution = 1;
 		
-	canOpen._currentPGain = gMotorProperties[index].qAxisCurrentPGain;
-	canOpen._currentIGain = gMotorProperties[index].qAxisCurrentIGain;
-	canOpen._velocityPGain = gMotorProperties[index].velocityPGain;
-	canOpen._velocityIGain = gMotorProperties[index].velocityIGain;
-	canOpen._positionPGain = gMotorProperties[index].positionPGain;
+	canOpen._currentPGain = mpex.motorProperty.qAxisCurrentPGain;
+	canOpen._currentIGain = mpex.motorProperty.qAxisCurrentIGain;
+	canOpen._velocityPGain = mpex.motorProperty.velocityPGain;
+	canOpen._velocityIGain = mpex.motorProperty.velocityIGain;
+	canOpen._positionPGain = mpex.motorProperty.positionPGain;
 	
-	canOpen._motionProfileType = gMotorProperties[index].motionProfileType;
-	canOpen._maxProfileVelocity = gMotorProperties[index].maxProfileVelocity;
-	canOpen._profileVelocity = gMotorProperties[index].profileVelocity;
-	canOpen._profileAcceleration = gMotorProperties[index].profileAcceleration;
-	canOpen._profileDeceleration = gMotorProperties[index].profileDeceleration;
-	canOpen._quickStopDeceleration = gMotorProperties[index].quickStopDeceleration;
-	canOpen._maxAcceleration = gMotorProperties[index].maxAcceleration;
-	canOpen._maxDeceleration = gMotorProperties[index].maxDeceleration;
+	canOpen._motionProfileType = mpex.motorProperty.motionProfileType;
+	canOpen._maxProfileVelocity = mpex.motorProperty.maxProfileVelocity;
+	canOpen._profileVelocity = mpex.motorProperty.profileVelocity;
+	canOpen._profileAcceleration = mpex.motorProperty.profileAcceleration;
+	canOpen._profileDeceleration = mpex.motorProperty.profileDeceleration;
+	canOpen._quickStopDeceleration = mpex.motorProperty.quickStopDeceleration;
+	canOpen._maxAcceleration = mpex.motorProperty.maxAcceleration;
+	canOpen._maxDeceleration = mpex.motorProperty.maxDeceleration;
 	
-	canOpen._minSwPositionLimit = gMotorProperties[index].minSwPositionLimit;
-	canOpen._maxSwPositionLimit = gMotorProperties[index].maxSwPositionLimit;
+	canOpen._minSwPositionLimit = mpex.motorProperty.minSwPositionLimit;
+	canOpen._maxSwPositionLimit = mpex.motorProperty.maxSwPositionLimit;
 	
-	canOpen._homingMethod = gMotorProperties[index].homingMethod;
-	canOpen._switchSearchVelocity = gMotorProperties[index].switchSearchSpeed;
-	canOpen._zeroSearchVelocity = gMotorProperties[index].zeroSearchSpeed;
-	canOpen._homingAcceleration = gMotorProperties[index].homingAcceleration;
-	canOpen._homeOffset = gMotorProperties[index].homeOffset;
-	
+	canOpen._homingMethod = mpex.motorProperty.homingMethod;
+	canOpen._switchSearchVelocity = mpex.motorProperty.switchSearchSpeed;
+	canOpen._zeroSearchVelocity = mpex.motorProperty.zeroSearchSpeed;
+	canOpen._homingAcceleration = mpex.motorProperty.homingAcceleration;
+	canOpen._homeOffset = mpex.motorProperty.homeOffset;
+	canOpen._digitalInputMask = mpex.digitalInputMask;
+	canOpen._digitalInputPolarity = mpex.digitalInputPolarity;
+		
 	servoController.LoadProperty();
 }
 
 int8_t SaveMotorProperty(void)
 {
-	MOTOR_PROPERTY motorProperty;
+	//MOTOR_PROPERTY motorProperty;
+	MOTOR_PROPERTY_EX mpex;
+
+	mpex.header[0] = 'H';
+	mpex.header[1] = 'X';
+	mpex.ver = PARAM_VER;
+	mpex.motorProperty.id = canOpen._id;
+	mpex.motorProperty.motorType = canOpen._motorType;
+	mpex.motorProperty.resistance = canOpen._resistance;
+	mpex.motorProperty.dAxisInductance = canOpen._dAxisInductance;
+	mpex.motorProperty.qAxisInductance = canOpen._qAxisInductance;
+	mpex.motorProperty.torqueConstant = canOpen._torqueConstant;
+	mpex.motorProperty.backEmfConstant = canOpen._backEmfConstant;
+	mpex.motorProperty.systemInertia = canOpen._systemInertia;
+	mpex.motorProperty.coulombFriction = canOpen._coulombFriction;
+	mpex.motorProperty.viscosFriction = canOpen._viscosFriction;
+	mpex.motorProperty.elecAngleOffset = canOpen._electricAngleOffset;
+	mpex.motorProperty.motorPhase = canOpen._motorPhase;
 	
-	motorProperty.id = canOpen._id;
-	motorProperty.motorType = canOpen._motorType;
-	motorProperty.resistance = canOpen._resistance;
-	motorProperty.dAxisInductance = canOpen._dAxisInductance;
-	motorProperty.qAxisInductance = canOpen._qAxisInductance;
-	motorProperty.torqueConstant = canOpen._torqueConstant;
-	motorProperty.backEmfConstant = canOpen._backEmfConstant;
-	motorProperty.systemInertia = canOpen._systemInertia;
-	motorProperty.coulombFriction = canOpen._coulombFriction;
-	motorProperty.viscosFriction = canOpen._viscosFriction;
-	motorProperty.elecAngleOffset = canOpen._electricAngleOffset;
-	motorProperty.motorPhase = canOpen._motorPhase;
+	mpex.motorProperty.ratedCurrent = canOpen._ratedCurrent;
+	mpex.motorProperty.maxCurrent = canOpen._maximumCurrent;
+	mpex.motorProperty.ratedTorque = canOpen._ratedTorque;
+	mpex.motorProperty.maxMotorSpeed = canOpen._maxMotorSpeed;
 	
-	motorProperty.ratedCurrent = canOpen._ratedCurrent;
-	motorProperty.maxCurrent = canOpen._maximumCurrent;
-	motorProperty.ratedTorque = canOpen._ratedTorque;
-	motorProperty.maxMotorSpeed = canOpen._maxMotorSpeed;
-	
-	motorProperty.positionSensorType = canOpen._positionSensorType;
-	motorProperty.positionSensorPolarity = canOpen._positionSensorPolarity;
-	motorProperty.polePairs = canOpen._polePairs;
-	motorProperty.positionSensorIncrement = canOpen._positionEncoderIncrement;
+	mpex.motorProperty.positionSensorType = canOpen._positionSensorType;
+	mpex.motorProperty.positionSensorPolarity = canOpen._positionSensorPolarity;
+	mpex.motorProperty.polePairs = canOpen._polePairs;
+	mpex.motorProperty.positionSensorIncrement = canOpen._positionEncoderIncrement;
 			
-	motorProperty.qAxisCurrentPGain = canOpen._currentPGain;
-	motorProperty.qAxisCurrentIGain = canOpen._currentIGain;
-	motorProperty.velocityPGain = canOpen._velocityPGain;
-	motorProperty.velocityIGain = canOpen._velocityIGain;
-	motorProperty.positionPGain = canOpen._positionPGain;
+	mpex.motorProperty.qAxisCurrentPGain = canOpen._currentPGain;
+	mpex.motorProperty.qAxisCurrentIGain = canOpen._currentIGain;
+	mpex.motorProperty.velocityPGain = canOpen._velocityPGain;
+	mpex.motorProperty.velocityIGain = canOpen._velocityIGain;
+	mpex.motorProperty.positionPGain = canOpen._positionPGain;
 	
-	motorProperty.motionProfileType = canOpen._motionProfileType;
-	motorProperty.maxProfileVelocity = canOpen._maxProfileVelocity;
-	motorProperty.profileVelocity = canOpen._profileVelocity;
-	motorProperty.profileAcceleration = canOpen._profileAcceleration;
-	motorProperty.profileDeceleration = canOpen._profileDeceleration;
-	motorProperty.quickStopDeceleration = canOpen._quickStopDeceleration;
-	motorProperty.maxAcceleration = canOpen._maxAcceleration;
-	motorProperty.maxDeceleration = canOpen._maxDeceleration;
+	mpex.motorProperty.motionProfileType = canOpen._motionProfileType;
+	mpex.motorProperty.maxProfileVelocity = canOpen._maxProfileVelocity;
+	mpex.motorProperty.profileVelocity = canOpen._profileVelocity;
+	mpex.motorProperty.profileAcceleration = canOpen._profileAcceleration;
+	mpex.motorProperty.profileDeceleration = canOpen._profileDeceleration;
+	mpex.motorProperty.quickStopDeceleration = canOpen._quickStopDeceleration;
+	mpex.motorProperty.maxAcceleration = canOpen._maxAcceleration;
+	mpex.motorProperty.maxDeceleration = canOpen._maxDeceleration;
 	
-	motorProperty.minSwPositionLimit = canOpen._minSwPositionLimit;
-	motorProperty.maxSwPositionLimit = canOpen._maxSwPositionLimit;
+	mpex.motorProperty.minSwPositionLimit = canOpen._minSwPositionLimit;
+	mpex.motorProperty.maxSwPositionLimit = canOpen._maxSwPositionLimit;
 	
-	motorProperty.homingMethod = canOpen._homingMethod;
-	motorProperty.switchSearchSpeed = canOpen._switchSearchVelocity;
-	motorProperty.zeroSearchSpeed = canOpen._zeroSearchVelocity;
-	motorProperty.homingAcceleration = canOpen._homingAcceleration;
-	motorProperty.homeOffset = canOpen._homeOffset;
+	mpex.motorProperty.homingMethod = canOpen._homingMethod;
+	mpex.motorProperty.switchSearchSpeed = canOpen._switchSearchVelocity;
+	mpex.motorProperty.zeroSearchSpeed = canOpen._zeroSearchVelocity;
+	mpex.motorProperty.homingAcceleration = canOpen._homingAcceleration;
+	mpex.motorProperty.homeOffset = canOpen._homeOffset;
+	mpex.digitalInputMask = canOpen._digitalInputMask;
+	mpex.digitalInputPolarity = canOpen._digitalInputPolarity;
 	
-	if(SaveProperties((uint8_t *)&motorProperty, sizeof(MOTOR_PROPERTY)) < 0) {
+	//if(SaveProperties((uint8_t *)&motorProperty, sizeof(MOTOR_PROPERTY)) < 0) {
+	if(SaveProperties((uint8_t *)&mpex, sizeof(MOTOR_PROPERTY_EX)) < 0) {
 		return -1;
 	}
 	
@@ -289,6 +324,8 @@ int8_t ProcessSdoCan(uint32_t *id, uint8_t *data, uint32_t *len)
 
 
 //	SwitchOnDisabled
+//Drive initialization is complete
+//Drive parameters may be changed Drive function is disabled
 int8_t Cia402_Fault_To_SwitchOnDisabled(void)
 {
 	servoController.Disable();
@@ -336,6 +373,8 @@ int8_t Cia402_QuickStopActive_To_SwitchOnDisabled(void)
 }
 
 //	ReadyToSwitchOn
+//Drive parameters may be changed
+//Drive function is disabled
 int8_t Cia402_SwitchOnDisalbed_TO_ReadyToSwitchOn(void)
 {
 	TurnOnBrake();
@@ -360,6 +399,7 @@ int8_t Cia402_OperationEnable_To_ReadyToSwitchOn(void)
 }
 
 //	SwitchedOn
+//Drive function is disabled
 int8_t Cia402_ReadyToSwitchOn_TO_SwitchedOn(void)
 {
 	servoController.Enable();
@@ -379,6 +419,8 @@ int8_t Cia402_OperationEnable_To_SwitchedOn(void)
 }
 
 //	OperationEnable
+//No faults have been detected
+//Drive function is enabled and power is applied to the motor
 int8_t Cia402_SwitchedOn_To_OperationEnable(void)
 {
 	TurnOffBrake();
@@ -392,6 +434,8 @@ int8_t Cia402_QuickStopActive_To_OperationEnable(void)
 }
 
 //	QuickStopActive
+//Quickstop function is being executed
+//Drive function is enabled and power is applied to the motor
 int8_t Cia402_OperationEnable_To_QuickStopActive(void)
 {
 	
@@ -543,6 +587,9 @@ int8_t SetInt16Data(uint16_t index, uint8_t subIndex, int16_t data)
 	else if((index == KITECH_CIA_402_ELECTRIC_ANGLE_OFFSET) && (subIndex == 0x00)) {
 		servoController.SetElectricAngleOffset((float)data*0.1f);		//	10^-1
 	}
+	else if((index == CIA_402_CURRENT_PARAMETER) && (subIndex == CIA_402_CURRENT_OFFSET)) { //pjg++181130
+		servoController.SetCurrentOffset((float)data/(float)1000);				//	10^-2
+	}
 	else {
 		return -1;
 	}
@@ -681,3 +728,13 @@ int8_t SetUint32Data(uint16_t index, uint8_t subIndex, uint32_t data)
 	
 	return 0;
 }
+
+//pjg++180710
+int Callback_MotorInfoSend(uint32_t *id, uint8_t *data, uint32_t *len)
+{
+	if (!canOpen.MakeMotorInfoSendData(data)) return 0;
+	*id = canOpen._bkId;
+	//data[0] = SDO_UPLOAD_REQUEST;
+	return canOpen.ProcessSdoCanOpen(id, data, len);
+}
+

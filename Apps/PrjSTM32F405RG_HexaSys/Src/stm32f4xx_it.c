@@ -4,7 +4,7 @@
   * @brief   Interrupt Service Routines.
   ******************************************************************************
   *
-  * COPYRIGHT(c) 2017 STMicroelectronics
+  * COPYRIGHT(c) 2018 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -40,6 +40,7 @@
 
 #include "math.h"
 #include "string.h"
+#include "main.h" //pjg++190322
 
 uint8_t gRunCurrentController = 0;
 uint16_t nRunLed = 0;
@@ -53,6 +54,8 @@ int32_t encoderPulse = 0;
 uint8_t hallSensorStatus = 0x00;
 uint8_t encoder1Type = 0;
 uint8_t encoder2Type = 0;
+uint16_t nStatus2Led = 0;
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -193,7 +196,6 @@ void SysTick_Handler(void)
   HAL_IncTick();
   HAL_SYSTICK_IRQHandler();
   /* USER CODE BEGIN SysTick_IRQn 1 */
-
   /* USER CODE END SysTick_IRQn 1 */
 }
 
@@ -210,12 +212,20 @@ void SysTick_Handler(void)
 void EXTI2_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI2_IRQn 0 */
-	GPIOB->BSRR |= GPIO_PIN_8;			//	Set -> High
-	
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
+	EXTI2_INT_TP_H;//GPIOB->BSRR |= GPIO_PIN_8;			//	Set -> High
+#endif	
 	hallSensorStatus = (GPIOA->IDR >> 8) & 0x7;
+      /*
+	if(hallSensorStatus < 1 || hallSensorStatus > 6) {  //sec++171204 hall err
+		__asm("nop"); __asm("nop"); 	//pjg++171204
+		hallSensorStatus = (GPIOA->IDR >> 8) & 0x7;
+		if(hallSensorStatus < 1 || hallSensorStatus > 6) { 	//pjg++171204
+			__asm("nop"); __asm("nop"); 
+			hallSensorStatus = (GPIOA->IDR >> 8) & 0x7;
+		}
+	}*/
 	encoderPulse = (int32_t)TIM2->CNT;
-    encoderPulse = -encoderPulse;// pjg
-    //hallSensorStatus = ~hallSensorStatus;
 	CalculateElecAngle(hallSensorStatus, encoderPulse);
 	
   /* USER CODE END EXTI2_IRQn 0 */
@@ -224,8 +234,10 @@ void EXTI2_IRQHandler(void)
 	__HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_2);
 	
 	nExt2Irq++;
-	
-	GPIOB->BSRR |= (GPIO_PIN_8 << 16);	//	Reset -> Low
+	GREEN_LED_TOGGLE;
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
+	EXTI2_INT_TP_L;//GPIOB->BSRR |= (GPIO_PIN_8 << 16);	//	Reset -> Low (TP1)
+#endif
   /* USER CODE END EXTI2_IRQn 1 */
 }
 
@@ -235,10 +247,11 @@ void EXTI2_IRQHandler(void)
 void ADC_IRQHandler(void)
 {
   /* USER CODE BEGIN ADC_IRQn 0 */
-	GPIOB->BSRR |= GPIO_PIN_9;			//	Set -> High
-	
-	adc12Result[0] = (int16_t)HAL_ADC_GetValue(&hadc1);
-    adc12Result[1] = (int16_t)HAL_ADC_GetValue(&hadc2);
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
+	ADC_INT_TP_H;//GPIOB->BSRR |= GPIO_PIN_9;			//	Set -> High
+#endif	
+	adc12Result[0] = (int16_t)HAL_ADC_GetValue(&hadc1); //U current
+	adc12Result[1] = (int16_t)HAL_ADC_GetValue(&hadc2); //V current
 	
 	RunCurrentController(adc12Result[0], adc12Result[1]);
 	
@@ -252,17 +265,18 @@ void ADC_IRQHandler(void)
   /* USER CODE END ADC_IRQn 0 */
   HAL_ADC_IRQHandler(&hadc1);
   HAL_ADC_IRQHandler(&hadc2);
-  //HAL_ADC_IRQHandler(&hadc3);
+  HAL_ADC_IRQHandler(&hadc3);
   /* USER CODE BEGIN ADC_IRQn 1 */
   	nAdcIrq++;
 	
 	if(++nRunLed == 12500) {
-		GPIOC->ODR ^= GPIO_PIN_13;
+		RUN_LED_TOGGLE;//GPIOC->ODR ^= GPIO_PIN_13;	//BLUE:RUN_LED
 		nRunLed = 0;
 	}
 	
-	GPIOB->BSRR |= (GPIO_PIN_9 << 16);	//	Reset -> Low
-
+#if defined(HEXA_BD_10A_V10) //single leg hexar version
+	ADC_INT_TP_L;//GPIOB->BSRR |= (GPIO_PIN_9 << 16);	//	Reset -> Low (TP2)
+#endif
   /* USER CODE END ADC_IRQn 1 */
 }
 
@@ -287,6 +301,7 @@ void DMA2_Stream0_IRQHandler(void)
 {
   /* USER CODE BEGIN DMA2_Stream0_IRQn 0 */
 	CalculateVoltageTemperature(adc3Result[0], adc3Result[1]);
+    //RUN_LED_TOGGLE;
   /* USER CODE END DMA2_Stream0_IRQn 0 */
   HAL_DMA_IRQHandler(&hdma_adc3);
   /* USER CODE BEGIN DMA2_Stream0_IRQn 1 */
@@ -311,6 +326,18 @@ void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef* hcan)
 	if(ProcessSdoCan(&hcan->pRxMsg->StdId, hcan->pRxMsg->Data, &hcan->pRxMsg->DLC) >= 0) {
 		memcpy(hcan->pTxMsg, hcan->pRxMsg, sizeof(CanRxMsgTypeDef));
 		HAL_CAN_Transmit(hcan, 10);
+		if (nStatus2Led++ > 50) {
+			nStatus2Led = 0;
+			STATUS2_LED_TOGGLE;
+		}
+	}
+	while (Callback_MotorInfoSend(&hcan->pRxMsg->StdId, hcan->pRxMsg->Data, &hcan->pRxMsg->DLC)) { //pjg++180710
+		memcpy(hcan->pTxMsg, hcan->pRxMsg, sizeof(CanRxMsgTypeDef));
+		HAL_CAN_Transmit(hcan, 10);
+		if (nStatus2Led++ > 50) {
+			nStatus2Led = 0;
+			STATUS2_LED_TOGGLE;
+		}
 	}
 }
 /* USER CODE END 1 */

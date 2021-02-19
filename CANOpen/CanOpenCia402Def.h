@@ -1,18 +1,30 @@
 #pragma once
 
+//
+// CANopen Profile for Drives and Motion Control (DSP 402).
+// 6000-9FFF : Standardized Device Profile Area (including Profile for Motion Control)
+//
 #define	CIA_402_ERROR_CODE									0x603F			//	Unsinged 16bit, RO
 #define	CIA_402_ERROR_CODE_GENERIC_ERROR					0x1000
-#define	CIA_402_ERROR_CODE_OVER_CURRENT_ERROR				0x2310
-#define	CIA_402_ERROR_CODE_OVER_VOLTAGE_ERROR				0x3210
-#define	CIA_402_ERROR_CODE_UNDER_VOLTAGE_ERROR				0x3220
+#define	CIA_402_ERROR_CODE_OVER_CURRENT_ERROR				0x2310			//Power supply can not supply enough acceleration current
+#define	CIA_402_ERROR_CODE_OVER_VOLTAGE_ERROR				0x3210			//In most cases this error occurs at deceleration
+#define	CIA_402_ERROR_CODE_UNDER_VOLTAGE_ERROR				0x3220		//The power supply can¡¯t supply the acceleration current
 #define	CIA_402_ERROR_CODE_OVER_TEMPERATURE_ERROR			0x4210
 #define	CIA_402_ERROR_CODE_CURRENT_DETECTION_ERROR			0x5210
 #define	CIA_402_ERROR_CODE_SERIAL_ENCODER_ERROR				0x7300
 #define	CIA_402_ERROR_CODE_ENCODER_DISCONNECTION_ERROR		0x7305
 #define	CIA_402_ERROR_CODE_OVER_SPEED_ERROR					0x8400
 #define	CIA_402_ERROR_CODE_FOLLOWING_ERROR					0x8611
-#define	CIA_402_ERROR_CODE_HALL_SENSOR_ERROR				0xFF01
-#define	CIA_402_ERROR_CODE_OVER_LOAD_ERROR					0xFF02
+#define	CIA_402_ERROR_CODE_HALL_SENSOR_ERROR				0xFF01			//The motor hall sensors report an impossible signal combination
+#define	CIA_402_ERROR_CODE_INDEX_PROCESSING_ERROR			0xFF02			//pjg<>18113//The encoder index signal was not found within two turns at start-up
+//#define	CIA_402_ERROR_CODE_OVER_LOAD_ERROR					0xFF02			//pjg--18113
+#define	CIA_402_ERROR_CODE_ENCODER_RESOLUTION_ERROR		0xFF03			//pjg++18113//The encoder pulses counted between the first two index pulses doesn¡¯t fit to the resolution
+#define	CIA_402_ERROR_CODE_HALL_SENSOR_NOT_FOUND_ERROR	0xFF04			//pjg++18113//No hall sensor 3 edge found within first motor turn
+#define	CIA_402_ERROR_CODE_NEGATIVE_LIMIT_ERROR			0xFF06			//pjg++18113//The negative limit switch was or is active
+#define	CIA_402_ERROR_CODE_POSITIVE_LIMIT_ERROR				0xFF07			//pjg++18113//The positive limit switch was or is active
+#define	CIA_402_ERROR_CODE_HALL_ANGLE_DETECTION_ERROR		0xFF08			//pjg++18113//The angle difference measured between encoder and hall sensors is too high
+#define	CIA_402_ERROR_CODE_POSITION_SENSOR_BREACH_ERROR	0xFF0A			//pjg++18113//The position sensor supervision has detected a bad working condition
+#define	CIA_402_ERROR_CODE_OVER_LOAD_ERROR					0xFF0B			//pjg<>18113//The device has not enough free resources to process the new target value
 #define	CIA_402_ERROR_CODE_CURRENT_AUTO_TUNING_ERROR		0xFF10
 #define	CIA_402_ERROR_CODE_VELOCITY_AUTO_TUNING_ERROR		0xFF11
 
@@ -234,9 +246,11 @@
 
 #define	CIA_402_POSITION_FOLLOWING_ERROR					0x60F4				//	Signed 32Bit	RW	Count	(-2147483648 ~ 2147483647)
 
+//This object is for backward compatibility and is no longer recommended. Use object 0x2380 which has the same content.
 #define	CIA_402_CURRENT_PARAMETER							0x60F6
 	#define	CIA_402_CURRENT_P_GAIN								0x01			//	Unsigned 16Bit,	RW	10^-3	(0 ~ 65535)
 	#define	CIA_402_CURRENT_I_GAIN								0x02			//	Unsigned 16Bit,	RW	10^0	(0 ~ 65535)
+	#define	CIA_402_CURRENT_OFFSET								0x03			//	Signed 16Bit,		RW	0.01A	(--2^15 to +2^15-1)  // pjg++181130 
 
 #define	CIA_402_VELOCITY_PARAMETER							0x60F9
 	#define	CIA_402_VELOCITY_P_GAIN								0x01			//	Unsigned 16Bit,	RW	10^-4	(0 ~ 65535)

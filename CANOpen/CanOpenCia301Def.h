@@ -1,5 +1,8 @@
 #pragma once
 
+//
+// Communication Profile (DS 301)
+// CANopen application layer and communication profile
 #define	CIA_301_DEVICE_TYPE								0x1000		//	RO	UINT32
 #define	CIA_301_ERROR_REG								0x1001		//	RO	UINT8
 	#define	CIA_301_ERROR_REG_GENERIC_ERROR					0x01
@@ -12,7 +15,7 @@
 
 #define	CIA_301_STORE									0x1010		//	RO	UINT8
 	#define	CIA_301_STORE_ALL_PARAMETERS					0x01		//	RW	UINT32
-#define	ASCII_SAVE											0x65766173	//	evas
+#define	ASCII_SAVE											0x65766173	//	evas(save)
 
 #define	CIA_301_INDENTITY_OBJECT						0x1018		//	RO	UINT8
 	#define	CIA_301_VENDOR_ID								0x01		//	RO	UINT32

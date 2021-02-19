@@ -10,7 +10,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * COPYRIGHT(c) 2017 STMicroelectronics
+  * COPYRIGHT(c) 2018 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -51,6 +51,7 @@
 
 /* USER CODE END Includes */
 
+extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim8;
 
@@ -60,6 +61,7 @@ extern TIM_HandleTypeDef htim8;
 
 extern void _Error_Handler(char *, int);
 
+void MX_TIM1_Init(void);
 void MX_TIM2_Init(void);
 void MX_TIM8_Init(void);
                     

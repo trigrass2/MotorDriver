@@ -9,7 +9,7 @@
   * inserted by the user or by software development tools
   * are owned by their respective copyright owners.
   *
-  * COPYRIGHT(c) 2017 STMicroelectronics
+  * COPYRIGHT(c) 2018 STMicroelectronics
   *
   * Redistribution and use in source and binary forms, with or without modification,
   * are permitted provided that the following conditions are met:
@@ -41,6 +41,7 @@
 #include "adc.h"
 #include "can.h"
 #include "dma.h"
+#include "spi.h"
 #include "tim.h"
 #include "gpio.h"
 
@@ -105,11 +106,17 @@ int main(void)
   MX_ADC3_Init();
   MX_TIM2_Init();
   MX_CAN1_Init();
+  MX_TIM1_Init();
+  MX_SPI2_Init();
 
   /* USER CODE BEGIN 2 */
  	//	Servo Controller
 	InitServoController();
-	//LoadMotorProperty(MAXONMOTOR_ECI52_60W);
+	//LoadMotorProperty(MAXONMOTOR_EC60_FLAT_100W_408057); //rohau pedal motor
+    //LoadMotorProperty(CELERA_UTH_63_B18_Cx000); //1st 1dof test(170620)
+    //LoadMotorProperty(KOLLMORGEN_01810_C); //2nd 1dof test bed (180310)
+	//LoadMotorProperty(MAXONMOTOR_ECI52_60W); //2nd goods (samsung-H4L):single leg AM_MF0095020
+	//LoadMotorProperty(AM_MF0095020); //power gait robot(190318)
 	LoadMotorProperty(MOTOR_ID_NONE);
 	
 	encoder1Type = GetEncoder1Type();
@@ -138,7 +145,12 @@ int main(void)
 	Can_config(&hcan1, 1);
 	if(HAL_CAN_Receive_IT(&hcan1, CAN_FIFO0) != HAL_OK) {
 	}
-
+	//Hall
+	//HAL_TIMEx_HallSensor_Start(&htim1); //pjg++181105
+	//htim1.Instance->SMCR |= TIM_TS_TI1F_ED; //pjg++181107
+	/* Enable the Hall sensor interface (XOR function of the three inputs) */
+	//htim1.Instance->CR2 |= TIM_CR2_TI1S; //pjg++181107
+	//HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL); //pjg++181107
   /* USER CODE END 2 */
 
   /* Infinite loop */
